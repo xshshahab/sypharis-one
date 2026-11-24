@@ -1,0 +1,5 @@
+PORT=8000
+VERSION="v1.0.0"
+URL_VERSION= "v1"
+TRAVEL_ROUTE = f"/api/{URL_VERSION}/travel"
+HEALTH_ROUTE = f"/api/{URL_VERSION}/health"
