@@ -3,18 +3,13 @@ import { Check, Loader2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-const STEPS = [
-  "Checking live flights",
-  "Finding hotels",
-  "Building your itinerary",
-  "Writing your trip plan",
-]
+const STEPS = ["Checking flights", "Finding hotels", "Putting your plan together"]
 
-const STEP_DURATION_MS = 4000
+const STEP_DURATION_MS = 6000
 
 /**
- * Shows progress while the backend works. The API answers in one go, so the
- * steps advance on a timer to mirror the order the agents run in.
+ * Shows that work is in progress. The API answers in one go, so the steps
+ * advance on a timer: it is a hint, not live status.
  */
 export function LoadingSteps() {
   const [active, setActive] = useState(0)
@@ -28,13 +23,11 @@ export function LoadingSteps() {
   }, [])
 
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="rounded-2xl border bg-card p-5 shadow-sm"
-    >
-      <p className="mb-4 text-sm font-medium">Planning your trip…</p>
-      <ol className="space-y-3">
+    <div role="status" aria-live="polite" className="rounded-lg border bg-card p-5">
+      <p className="font-serif text-lg">Planning your trip</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">This can take a minute.</p>
+
+      <ol className="mt-4 space-y-2.5">
         {STEPS.map((label, index) => {
           const done = index < active
           const current = index === active
@@ -47,7 +40,7 @@ export function LoadingSteps() {
                 !done && !current && "text-muted-foreground/60"
               )}
             >
-              <span className="flex size-5 items-center justify-center">
+              <span className="flex size-4 items-center justify-center">
                 {done ? (
                   <Check className="size-4 text-primary" />
                 ) : current ? (
