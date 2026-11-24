@@ -13,7 +13,7 @@ const SUGGESTIONS = [
   "Plan a 5 day Japan trip from Delhi with hotels",
   "Weekend in Goa from Mumbai",
   "Flights from Delhi to Dubai",
-  "7 days in Europe from Delhi, budget friendly",
+  "7 days in Paris from Delhi, budget friendly",
 ]
 
 type Status = "idle" | "loading" | "done" | "error"

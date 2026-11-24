@@ -27,3 +27,6 @@
 docker-compose*.yml
 **/Dockerfile
 .dockerignore
+
+# Private notes, not part of any image
+docs

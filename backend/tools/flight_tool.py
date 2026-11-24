@@ -59,6 +59,10 @@ COUNTRY_ALIASES = {
     "france": "FR",
     "italy": "IT",
     "spain": "ES",
+    "taiwan": "TW",
+    "iran": "IR",
+    "czech republic": "CZ",
+    "ivory coast": "CI",
 }
 
 
@@ -86,6 +90,50 @@ COUNTRY_MAIN_AIRPORT = {
     "FR": "CDG",
     "IT": "FCO",
     "ES": "MAD",
+    "UA": "KBP",
+    "PK": "ISB",
+    "LK": "CMB",
+    "MV": "MLE",
+    "NZ": "AKL",
+    "PH": "MNL",
+    "VN": "SGN",
+    "HK": "HKG",
+    "TW": "TPE",
+    "OM": "MCT",
+    "KW": "KWI",
+    "BH": "BAH",
+    "JO": "AMM",
+    "IL": "TLV",
+    "IR": "IKA",
+    "BT": "PBH",
+    "MM": "RGN",
+    "KH": "PNH",
+    "RU": "SVO",
+    "NL": "AMS",
+    "CH": "ZRH",
+    "GR": "ATH",
+    "PT": "LIS",
+    "IE": "DUB",
+    "SE": "ARN",
+    "NO": "OSL",
+    "DK": "CPH",
+    "FI": "HEL",
+    "PL": "WAW",
+    "AT": "VIE",
+    "BE": "BRU",
+    "CZ": "PRG",
+    "HU": "BUD",
+    "BR": "GRU",
+    "MX": "MEX",
+    "AR": "EZE",
+    "CL": "SCL",
+    "CO": "BOG",
+    "PE": "LIM",
+    "EG": "CAI",
+    "ZA": "JNB",
+    "NG": "LOS",
+    "KE": "NBO",
+    "PG": "POM",
 }
 
 
@@ -100,6 +148,26 @@ CITY_MAIN_AIRPORT = {
     "chennai": "MAA",
     "bangalore": "BLR",
     "bengaluru": "BLR",
+    "goa": "GOI",
+    "hyderabad": "HYD",
+    "pune": "PNQ",
+    "ahmedabad": "AMD",
+    "jaipur": "JAI",
+    "kochi": "COK",
+    "cochin": "COK",
+    "lucknow": "LKO",
+    "chandigarh": "IXC",
+    "srinagar": "SXR",
+    "varanasi": "VNS",
+    "amritsar": "ATQ",
+    "bhubaneswar": "BBI",
+    "patna": "PAT",
+    "guwahati": "GAU",
+    "thiruvananthapuram": "TRV",
+    "trivandrum": "TRV",
+    "indore": "IDR",
+    "nagpur": "NAG",
+    "udaipur": "UDR",
     "tokyo": "NRT",
     "osaka": "KIX",
     "kyoto": "KIX",
@@ -147,7 +215,7 @@ def country_name_to_code(text: str):
     """
     Converts a country name (or alias like "usa", "uae") to its 2-letter code.
 
-    Also finds a country name inside longer text.
+    Also finds a country name inside longer text (whole words only).
     Returns None if no country is found.
 
     Example: "japan" -> "JP"
@@ -155,27 +223,35 @@ def country_name_to_code(text: str):
 
     text = clean_text(text)
 
+    if not text:
+        return None
+
     if text in COUNTRY_ALIASES:
         return COUNTRY_ALIASES[text]
 
-    try:
-        country = pycountry.countries.lookup(text)
-        return country.alpha_2
-    except LookupError:
-        pass
+    # lookup() also accepts 2/3-letter codes ("in", "it"), so skip it for short text
+    if len(text) > 3:
+        try:
+            return pycountry.countries.lookup(text).alpha_2
+        except LookupError:
+            pass
 
-    # Detect country name inside longer text
+    # Detect a country name inside longer text (whole words only, longest wins)
+    matches = []
+
     for country in pycountry.countries:
-        country_name = country.name.lower()
-        if country_name in text:
-            return country.alpha_2
+        name = country.name.lower()
+        if len(name) >= 4 and re.search(rf"\b{re.escape(name)}\b", text):
+            matches.append((len(name), country.alpha_2))
 
     for alias, code in COUNTRY_ALIASES.items():
-        if alias in text:
-            return code
+        if re.search(rf"\b{re.escape(alias)}\b", text):
+            matches.append((len(alias), code))
+
+    if matches:
+        return max(matches)[1]
 
     return None
-
 
 
 def airport_country_matches(airport: dict, country_code: str) -> bool:
@@ -250,7 +326,7 @@ def get_best_airport_for_country(country_code: str):
 
 
 
-def resolve_location_to_iata(location: str):
+def resolve_location_to_iata(location: str, _nested: bool = False):
     """
     Converts country/city/airport/IATA into IATA code.
 
@@ -270,7 +346,12 @@ def resolve_location_to_iata(location: str):
     # Direct IATA code
     if re.fullmatch(r"[A-Za-z]{3}", raw_location):
         code = raw_location.upper()
-        if code in AIRPORTS:
+        # "USA"/"UAE" and "Goa" are also airport codes (Concord, Genoa...), but
+        # here they mean the country/city, so the name lists win over the code
+        is_known_name = (
+            code.lower() in COUNTRY_ALIASES or code.lower() in CITY_MAIN_AIRPORT
+        )
+        if code in AIRPORTS and not is_known_name:
             return code
 
     location_clean = clean_text(raw_location)
@@ -289,6 +370,10 @@ def resolve_location_to_iata(location: str):
         if airport:
             return airport
 
+    # Too short to search the airport database safely
+    if len(location_clean) < 3:
+        return None
+
     # Exact city match from airport database
     city_matches = []
 
@@ -306,7 +391,8 @@ def resolve_location_to_iata(location: str):
         if location_clean in name:
             score += 50
 
-        if "international" in name:
+        # Small bonus for international airports, but only for real matches
+        if score > 0 and "international" in name:
             score += 10
 
         if score > 0:
@@ -316,42 +402,53 @@ def resolve_location_to_iata(location: str):
         city_matches.sort(reverse=True)
         return city_matches[0][1]
 
+    # Last resort: a known city/country hidden in longer text ("dhaka next week")
+    if not _nested:
+        for mention in find_location_mentions(location_clean):
+            if mention != location_clean:
+                return resolve_location_to_iata(mention, _nested=True)
+
     return None
 
 
 
 
+def _mention_spans(query: str):
+    """
+    Finds country/city names in a query. Returns [(start, end, name)] in the
+    order they appear, dropping names that sit inside a longer one
+    ("korea" inside "south korea").
+    """
+    q = query.lower()
+    candidates = []
+
+    names = set(COUNTRY_ALIASES) | set(CITY_MAIN_AIRPORT)
+    names |= {c.name.lower() for c in pycountry.countries if len(c.name) >= 4}
+
+    for name in names:
+        for m in re.finditer(rf"\b{re.escape(name)}\b", q):
+            candidates.append((m.start(), m.end(), name))
+
+    # Longest first, then drop anything contained in an already kept span
+    candidates.sort(key=lambda c: (c[0] - c[1], c[0]))
+    kept = []
+    for start, end, name in candidates:
+        if not any(ks <= start and end <= ke for ks, ke, _ in kept):
+            kept.append((start, end, name))
+
+    return sorted(kept)
+
+
 def find_location_mentions(query: str):
     """
-    Finds country or city names inside a natural language query.
+    Finds country or city names inside a natural language query,
+    in the order they appear.
     """
+    return [name for _, _, name in _mention_spans(query)]
 
-    q = query.lower()
-    mentions = []
 
-    # Country aliases
-    for alias in COUNTRY_ALIASES:
-        if re.search(rf"\b{re.escape(alias)}\b", q):
-            mentions.append(alias)
-
-    # Country names from pycountry
-    for country in pycountry.countries:
-        name = country.name.lower()
-        if len(name) >= 4 and re.search(rf"\b{re.escape(name)}\b", q):
-            mentions.append(name)
-
-    # City names from our preferred city map
-    for city in CITY_MAIN_AIRPORT:
-        if re.search(rf"\b{re.escape(city)}\b", q):
-            mentions.append(city)
-
-    # Remove duplicate while keeping order
-    unique_mentions = []
-    for item in mentions:
-        if item not in unique_mentions:
-            unique_mentions.append(item)
-
-    return unique_mentions
+# Words that end a location phrase ("from Delhi to Dubai on Friday")
+_END = r"(?:\s+(?:on|for|under|including|with|in|at|by|via|next|this|tomorrow|today|and|within)\b|[.!?,]|$)"
 
 
 def parse_route(query: str):
@@ -384,71 +481,67 @@ def parse_route(query: str):
     if any(keyword in q_lower for keyword in global_keywords):
         return None, None
 
-    # Direct IATA code route: DAC to NRT
-    codes = re.findall(r"\b[A-Z]{3}\b", q)
+    # Direct IATA codes: DAC to NRT (must be real airports, not "USA"/"UAE")
+    codes = [
+        c for c in re.findall(r"\b[A-Z]{3}\b", q)
+        if c in AIRPORTS and c.lower() not in COUNTRY_ALIASES
+    ]
 
     if len(codes) >= 2:
-        dep = codes[0].upper()
-        arr = codes[1].upper()
-        return dep, arr
+        return codes[0], codes[1]
 
     # Pattern: from X to Y
-    match = re.search(
-        r"\bfrom\s+(.+?)\s+\bto\s+(.+?)(?:\s+(?:on|for|under|including|with|in|at)\b|[.!?]|$)",
-        q_lower,
-    )
+    match = re.search(rf"\bfrom\s+(.+?)\s+to\s+(.+?){_END}", q_lower)
 
     if match:
-        origin_text = match.group(1)
-        dest_text = match.group(2)
-
-        dep_iata = resolve_location_to_iata(origin_text)
-        arr_iata = resolve_location_to_iata(dest_text)
-
-        return dep_iata, arr_iata
+        return (
+            resolve_location_to_iata(match.group(1)),
+            resolve_location_to_iata(match.group(2)),
+        )
 
     # Pattern: to Y from X
-    match = re.search(
-        r"\bto\s+(.+?)\s+\bfrom\s+(.+?)(?:\s+(?:on|for|under|including|with|in|at)\b|[.!?]|$)",
-        q_lower,
-    )
+    match = re.search(rf"\bto\s+(.+?)\s+from\s+(.+?){_END}", q_lower)
 
     if match:
-        dest_text = match.group(1)
-        origin_text = match.group(2)
+        return (
+            resolve_location_to_iata(match.group(2)),
+            resolve_location_to_iata(match.group(1)),
+        )
 
-        dep_iata = resolve_location_to_iata(origin_text)
-        arr_iata = resolve_location_to_iata(dest_text)
+    # Pattern: from X  (a destination may still be mentioned elsewhere:
+    # "7 days Japan trip from Bangladesh")
+    match = re.search(rf"\bfrom\s+(.+?){_END}", q_lower)
+
+    if match:
+        dep_iata = resolve_location_to_iata(match.group(1))
+
+        others = [
+            name for start, end, name in _mention_spans(q_lower)
+            if end <= match.start(1) or start >= match.end(1)
+        ]
+        arr_iata = resolve_location_to_iata(others[0]) if others else None
 
         return dep_iata, arr_iata
 
-    # Pattern: flights from X
-    match = re.search(r"\bfrom\s+(.+?)(?:[.!?]|$)", q_lower)
+    # Pattern: to Y  (origin may come before it: "USA to UK")
+    match = re.search(rf"\bto\s+(.+?){_END}", q_lower)
 
     if match:
-        origin_text = match.group(1)
-        dep_iata = resolve_location_to_iata(origin_text)
-        return dep_iata, None
+        arr_iata = resolve_location_to_iata(match.group(1))
 
-    # Pattern: flights to X
-    match = re.search(r"\bto\s+(.+?)(?:[.!?]|$)", q_lower)
+        before = find_location_mentions(q_lower[:match.start()])
+        dep_iata = resolve_location_to_iata(before[-1]) if before else None
 
-    if match:
-        dest_text = match.group(1)
-        arr_iata = resolve_location_to_iata(dest_text)
-        return None, arr_iata
+        return dep_iata, arr_iata
 
-    # Fallback: find country/city mentions
+    # Fallback: country/city mentions in order of appearance
     mentions = find_location_mentions(q)
 
     if len(mentions) >= 2:
-        dep_iata = resolve_location_to_iata(mentions[0])
-        arr_iata = resolve_location_to_iata(mentions[1])
-        return dep_iata, arr_iata
+        return resolve_location_to_iata(mentions[0]), resolve_location_to_iata(mentions[1])
 
     if len(mentions) == 1:
-        arr_iata = resolve_location_to_iata(mentions[0])
-        return DEFAULT_ORIGIN_IATA, arr_iata
+        return DEFAULT_ORIGIN_IATA, resolve_location_to_iata(mentions[0])
 
     return None, None
 
@@ -462,8 +555,8 @@ def format_flight(flight: dict):
     shown as "Unknown" or "N/A".
     """
 
-    airline = flight.get("airline", {}).get("name") or "Unknown airline"
-    flight_number = flight.get("flight", {}).get("iata") or "Unknown flight number"
+    airline = (flight.get("airline") or {}).get("name") or "Unknown airline"
+    flight_number = (flight.get("flight") or {}).get("iata") or "Unknown flight number"
     status = flight.get("flight_status") or "Unknown"
 
     dep = flight.get("departure", {}) or {}

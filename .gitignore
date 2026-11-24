@@ -3,3 +3,6 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# Private study notes - must never be pushed to GitHub
+docs/
