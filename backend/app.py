@@ -51,7 +51,10 @@ class TravelRequest(BaseModel):
     thread_id: str | None = None
 
 @app.post(TRAVEL_ROUTE)
-async def travel_planner(request_data: TravelRequest):
+def travel_planner(request_data: TravelRequest):
+    # Plain `def` (not async): run_travel_agent blocks for a long time, so
+    # FastAPI runs this in a worker thread and other requests (like the
+    # health check) keep being served.
     try:
         user_message = request_data.message.strip()
 
