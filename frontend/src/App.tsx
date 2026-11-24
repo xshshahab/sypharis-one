@@ -1,164 +1,156 @@
 import { useRef, useState } from "react"
-import { AlertCircle, RotateCcw } from "lucide-react"
+import { AlertCircle, ArrowRight, Pencil, RotateCcw } from "lucide-react"
 
 import logo from "@/assets/SypharisOne.webp"
 import { LoadingSteps } from "@/components/loading-steps"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { TripComposer } from "@/components/trip-composer"
+import { TripForm } from "@/components/trip-form"
 import { TripResult } from "@/components/trip-result"
 import { Button } from "@/components/ui/button"
 import { planTrip, type TripPlan } from "@/lib/api"
-
-const SUGGESTIONS = [
-  "Plan a 5 day Japan trip from Delhi with hotels",
-  "Weekend in Goa from Mumbai",
-  "Flights from Delhi to Dubai",
-  "7 days in Paris from Delhi, budget friendly",
-]
+import { buildMessage, EMPTY_TRIP, type TripRequest } from "@/lib/trip"
 
 type Status = "idle" | "loading" | "done" | "error"
 
 export function App() {
   const [status, setStatus] = useState<Status>("idle")
-  const [query, setQuery] = useState("")
+  const [trip, setTrip] = useState<TripRequest>(EMPTY_TRIP)
+  const [editing, setEditing] = useState(false)
   const [plan, setPlan] = useState<TripPlan | null>(null)
   const [error, setError] = useState("")
-  // Keeps follow-up requests in the same conversation on the backend
-  const threadId = useRef<string | null>(null)
   const controller = useRef<AbortController | null>(null)
 
-  async function handleSubmit(message: string) {
+  async function handleSubmit(next: TripRequest) {
     controller.current?.abort()
     const current = new AbortController()
     controller.current = current
 
-    setQuery(message)
+    setTrip(next)
+    setEditing(false)
     setError("")
+    setPlan(null)
     setStatus("loading")
 
     try {
-      const result = await planTrip(message, threadId.current, current.signal)
-      threadId.current = result.thread_id || null
+      // Every plan is a fresh request, so no thread id is sent
+      const result = await planTrip(buildMessage(next), null, current.signal)
       setPlan(result)
       setStatus("done")
     } catch (err) {
-      if (current.signal.aborted) return // user pressed stop or reset
+      if (current.signal.aborted) return
       setError(err instanceof Error ? err.message : "Something went wrong.")
       setStatus("error")
     }
   }
 
-  function handleCancel() {
-    controller.current?.abort()
-    setStatus(plan ? "done" : "idle")
-  }
-
   function handleReset() {
     controller.current?.abort()
-    threadId.current = null
+    setTrip(EMPTY_TRIP)
     setPlan(null)
-    setQuery("")
     setError("")
+    setEditing(false)
     setStatus("idle")
   }
 
   const loading = status === "loading"
-  const started = status !== "idle"
+  const showForm = status === "idle" || editing
 
   return (
     <div className="flex min-h-svh flex-col">
-      <header className="mx-auto flex w-full max-w-3xl items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-2">
-          <img
-            src={logo}
-            alt=""
-            className="h-8 w-auto mix-blend-multiply dark:invert dark:mix-blend-screen"
-          />
-          <span className="text-sm font-semibold tracking-tight">
-            Sypharis One
-          </span>
-        </div>
+      <header className="border-b print:hidden">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3">
+          <button onClick={handleReset} className="flex items-center gap-2.5" aria-label="Sypharis One home">
+            <img
+              src={logo}
+              alt=""
+              className="h-7 w-auto mix-blend-multiply dark:invert dark:mix-blend-screen"
+            />
+            <span className="font-serif text-lg font-semibold tracking-tight">Sypharis One</span>
+          </button>
 
-        <div className="flex items-center gap-1">
-          {started && (
-            <Button variant="ghost" size="sm" onClick={handleReset}>
-              <RotateCcw />
-              New trip
-            </Button>
-          )}
-          <ThemeToggle />
+          <div className="flex items-center gap-1">
+            {status !== "idle" && (
+              <Button variant="ghost" size="sm" onClick={handleReset}>
+                <RotateCcw />
+                New trip
+              </Button>
+            )}
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
-      <main
-        className={
-          started
-            ? "mx-auto w-full max-w-3xl flex-1 space-y-5 px-4 pb-10"
-            : "mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-4 pb-24"
-        }
-      >
-        {!started && (
-          <div className="mb-8 text-center">
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-              Where to next?
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:py-12">
+        {status === "idle" && (
+          <div className="mx-auto max-w-2xl">
+            <h1 className="font-serif text-4xl leading-tight font-semibold tracking-tight sm:text-5xl">
+              Plan your trip
             </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Describe your trip. Sypharis One checks live flights, finds
-              hotels and builds your itinerary.
+            <p className="mt-3 mb-8 max-w-prose text-muted-foreground">
+              Tell us where you are going and for how long. You will get live flight information,
+              hotel options and a day-by-day plan.
             </p>
+            <TripForm loading={loading} initial={trip} showPopular onSubmit={handleSubmit} />
           </div>
         )}
 
-        <TripComposer
-          loading={loading}
-          onSubmit={handleSubmit}
-          onCancel={handleCancel}
-        />
+        {status !== "idle" && (
+          <div className="space-y-6">
+            {showForm ? (
+              <div className="mx-auto max-w-2xl">
+                <TripForm loading={loading} initial={trip} onSubmit={handleSubmit} />
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <p className="flex items-center gap-2 font-serif text-2xl font-semibold tracking-tight sm:text-3xl">
+                    {trip.from.trim() || "Delhi"}
+                    <ArrowRight className="size-5 text-muted-foreground" />
+                    {trip.to}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {trip.days} {trip.days === 1 ? "day" : "days"}
+                    {trip.notes.trim() && ` · ${trip.notes.trim()}`}
+                  </p>
+                </div>
 
-        {!started && (
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
-            {SUGGESTIONS.map((suggestion) => (
-              <Button
-                key={suggestion}
-                variant="outline"
-                size="sm"
-                onClick={() => handleSubmit(suggestion)}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="print:hidden"
+                  disabled={loading}
+                  onClick={() => setEditing(true)}
+                >
+                  <Pencil />
+                  Edit trip
+                </Button>
+              </div>
+            )}
+
+            {loading && (
+              <div className="mx-auto max-w-2xl">
+                <LoadingSteps />
+              </div>
+            )}
+
+            {status === "error" && (
+              <div
+                role="alert"
+                className="mx-auto flex max-w-2xl items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm"
               >
-                {suggestion}
-              </Button>
-            ))}
+                <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
+                <div className="space-y-2">
+                  <p>{error}</p>
+                  <Button variant="outline" size="sm" onClick={() => handleSubmit(trip)}>
+                    Try again
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {status === "done" && plan && <TripResult plan={plan} />}
           </div>
         )}
-
-        {started && query && (
-          <p className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">You asked:</span>{" "}
-            {query}
-          </p>
-        )}
-
-        {loading && <LoadingSteps />}
-
-        {status === "error" && (
-          <div
-            role="alert"
-            className="flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive"
-          >
-            <AlertCircle className="mt-0.5 size-4 shrink-0" />
-            <div className="space-y-2">
-              <p>{error}</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleSubmit(query)}
-              >
-                Try again
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {status === "done" && plan && <TripResult plan={plan} />}
       </main>
     </div>
   )

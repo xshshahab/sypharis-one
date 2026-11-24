@@ -13,6 +13,7 @@ export type TripPlan = {
   answer: string
   flight_results: string
   hotel_results: string
+  weather_results: string // only filled by the MCP agent
   itinerary: string
   llm_calls: number
 }
@@ -63,6 +64,7 @@ export async function planTrip(
     answer: body.answer ?? "",
     flight_results: body.flight_results ?? "",
     hotel_results: body.hotel_results ?? "",
+    weather_results: body.weather_results ?? "",
     itinerary: body.itinerary ?? "",
     llm_calls: body.llm_calls ?? 0,
   }

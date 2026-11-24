@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm"
 /** Renders markdown from the agent (headings, lists, tables, links). */
 export function Markdown({ children }: { children: string }) {
   return (
-    <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary prose-table:text-xs">
+    <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:font-serif prose-headings:font-semibold prose-a:text-primary prose-table:text-xs">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

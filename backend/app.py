@@ -7,7 +7,26 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
-from agent import run_travel_agent
+
+import nest_asyncio
+nest_asyncio.apply()
+
+load_dotenv()
+
+# =========================
+# Which agent runs (set AGENT_MODE in .env)
+# =========================
+#   without_mcp (default): tools are called directly in Python (agent_without_mcp.py)
+#   mcp                  : tools are called through MCP servers (agent_with_mcp.py)
+# Plain module names (not "backend.agent...") because the app runs from inside backend/.
+AGENT_MODE = os.getenv("AGENT_MODE", "without_mcp").strip().lower()
+
+if AGENT_MODE == "mcp":
+    from agent_with_mcp import run_travel_agent
+else:
+    from agent_without_mcp import run_travel_agent
+
+print(f"Agent mode: {AGENT_MODE}")
 
 from constants.app_constant import (
     PORT,
@@ -79,6 +98,7 @@ def travel_planner(request_data: TravelRequest):
                 "answer": result["answer"],
                 "flight_results": result["flight_results"],
                 "hotel_results": result["hotel_results"],
+                "weather_results": result.get("weather_results", ""),  # only the MCP agent fills this
                 "itinerary": result["itinerary"],
                 "llm_calls": result["llm_calls"],
             }
@@ -111,6 +131,6 @@ if __name__ == "__main__":
     uvicorn.run(
         "app:app",
         host="127.0.0.1",
-        port=8000,
+        port=PORT,
         reload=True
     )
