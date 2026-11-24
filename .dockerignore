@@ -1,0 +1,29 @@
+# Shared by both images (the build context is the project root).
+
+# Secrets - never bake these into an image. Compose passes .env at runtime.
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Dependencies and build output (rebuilt inside the image)
+.venv
+**/node_modules
+**/dist
+
+# Python caches
+**/__pycache__
+**/*.pyc
+
+# Git and editor files
+.git
+**/.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+
+# Docker files themselves
+docker-compose*.yml
+**/Dockerfile
+.dockerignore
