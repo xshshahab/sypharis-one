@@ -76,20 +76,6 @@ REQUIRED_KEYS = {
 _tools_cache: dict[str, dict] = {}
 
 
-def get_client():
-    """Returns the shared MCP client."""
-    return client
-
-
-async def get_all_tools():
-    """Prints the tools of every server (handy for debugging)."""
-    tools = await client.get_tools()
-    print("\nAvailable MCP Tools:\n")
-
-    for tool in tools:
-        print(tool.name)
-
-
 async def get_server_tools(server_name: str) -> dict:
     """
     Returns {tool_name: tool} for ONE server (cached after the first call).

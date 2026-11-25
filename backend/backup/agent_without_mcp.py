@@ -17,12 +17,12 @@ from langgraph.graph import END, START, StateGraph
 from psycopg.rows import dict_row
 
 from agents import (
-    TravelState,
     final_agent,
     flight_agent,
     hotel_agent,
     itinerary_agent,
 )
+from backend.agents import TravelState
 from config.db import get_database_url
 
 load_dotenv()

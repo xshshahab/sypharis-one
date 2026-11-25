@@ -147,3 +147,26 @@ export function formatForecastTime(value: string): string {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
   return `${Number(match[2])} ${months[Number(match[1]) - 1]}, ${match[3]}`
 }
+
+// ---------- notes written for the AI ----------
+
+/**
+ * When a live service fails, the backend leaves a note meant for the AI ("... Provide general
+ * guidance and label it as non-live"). That text should not be shown to travellers as it is.
+ */
+export function isUnavailableNote(text: string): boolean {
+  return /temporarily unavailable|information unavailable/i.test(text)
+}
+
+/** "flight_agent" -> "Flights" */
+const AGENT_LABELS: Record<string, string> = {
+  flight_agent: "Flights",
+  hotel_agent: "Hotels",
+  weather_agent: "Weather",
+  budget_agent: "Budget",
+  itinerary_agent: "Itinerary",
+}
+
+export function agentLabel(name: string): string {
+  return AGENT_LABELS[name] ?? name
+}
