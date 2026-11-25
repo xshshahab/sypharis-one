@@ -2,15 +2,17 @@
 
 An AI travel planner built as a multi-agent system. You describe a trip in plain language. A supervisor checks the request and picks the specialist agents it needs, the agents gather flights, hotels, weather and a budget check, and an itinerary is drafted. **You review the draft** and approve it or ask for changes, and then the final plan is written.
 
+**Live App:** [travel.shahabuddin.in](https://travel.shahabuddin.in)
+
+![Sypharis One — Live Preview](screenshots/preview.jpg)
+
 The project was built in phases. Each phase upgraded the same application.
 
 | Phase | What it covers | Status |
 |-------|----------------|--------|
 | **1** | Multi-agent travel planner with LangGraph, **without MCP** | Done, archived |
 | **2** | Tools moved to **MCP** (Model Context Protocol), plus a weather agent | Done, archived |
-| **3** | **Final version**: Supervisor, Guardrails and Human-in-the-Loop (HITL) | Backend built, UI approval step still to do |
-
-> **Status:** the backend (supervisor, input guardrail, budget agent, approval step) is implemented and was tested with simulated services. It has **not** yet been run end to end against the live Groq, AviationStack, Tavily and database services. The web UI does not handle the approval step yet: it shows the draft as the plan and never calls the approve endpoint. See [Known limitations](#known-limitations-final-version).
+| **3** | **Final version**: Supervisor, Guardrails, Human-in-the-Loop (HITL), React UI & Docker Postgres | Complete & deployed |
 
 > Branches: Phase 1 is on `phase/withoutmcp` and Phase 2 on `phase/withmcp`.
 
@@ -297,15 +299,15 @@ The frontend calls `http://127.0.0.1:8000` by default. To change it, copy `front
 
 ## Frontend
 
-A single-page app with a plain trip form (From, To, Days and optional notes) and a few popular trips. The form builds the request sentence for the API, for example *"Plan a 5 day trip from Delhi to Tokyo with hotels"*.
+Built with **React 19, TypeScript, React Router, Tailwind CSS 4, and shadcn/ui** (with light/dark mode and responsive layouts):
 
-The result shows the plan on the left, with **Full plan** and **Day by day** views plus Copy and Print. On the right are **Weather**, **Flights** and **Hotels** cards. The page also has a progress card while the agents work, retry on errors, and light/dark mode. Colors are solid (no gradients) and headings use a serif font.
-
-**Not built yet:** the approval step. The UI shows the draft as the plan, does not call `/api/v1/travel/approve`, and does not show the budget analysis.
+- **Routes (`/`, `/planning`, `/review`, `/plan`, `/architecture`):** Real client-side routing via `react-router`, preserving active drafts in `sessionStorage` across refreshes.
+- **Trip Planner (`/`):** Frosted-glass search bar with animated border beam, shadcn/ui **Calendar** date picker and **Select** dropdowns, pace & interest chips, popular trip presets, and guardrail/error notices.
+- **Draft Review (`/review`) & Final Plan (`/plan`):** Displays the day-by-day itinerary with Copy/Print controls, full-width budget breakdown & flight guidance, side-by-side Hotels & live Weather cards, and a sticky **Your decision** panel to approve or request revisions via `/api/v1/travel/approve`.
+- **Architecture (`/architecture`):** Visual 4-layer system diagram explaining the frontend, FastAPI gateway, LangGraph workflow, PostgreSQL checkpoints, and MCP servers.
 
 ## Known limitations (final version)
 
-- **No approval step in the UI.** The API pauses and waits for a decision, but the web page never asks for one.
 - **The flight agent depends on tools your AviationStack plan may block.** It calls `list_airports` and `list_airlines`, which the plan used here rejects (`function_access_restricted`). The agent then gives the LLM the error text, and the model can invent airlines. The Phase 2 agent (`backup/agent_with_mcp.py`) reads the live departure board instead and avoids this.
 - **No ticket prices.** AviationStack returns live flight status, not fares. The prompts label prices as estimates.
 - **`llm_calls` is not exact.** It counts the hotel step (which makes no LLM call) and not the weather step, so a full run reports 7 while 6 model calls are made.
