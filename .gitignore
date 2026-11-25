@@ -6,3 +6,4 @@ __pycache__/
 
 # Private study notes - must never be pushed to GitHub
 docs/
+DEPLOYMENT.md
