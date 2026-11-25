@@ -1,8 +1,28 @@
 import { useId, useState, type FormEvent, type ReactNode } from "react"
-import { ArrowLeftRight, ChevronDown, CircleAlert, Minus, Plus } from "lucide-react"
+import {
+  ArrowLeftRight,
+  Calendar as CalendarIcon,
+  CircleAlert,
+  Minus,
+  Plus,
+  X,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { EMPTY_TRIP, INTERESTS, PACES, today, type TripRequest } from "@/lib/trip"
+import { Calendar } from "@/components/ui/calendar"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { EMPTY_TRIP, INTERESTS, PACES, type TripRequest } from "@/lib/trip"
 import { cn } from "@/lib/utils"
 
 // 16px on small screens: iOS zooms into inputs smaller than that
@@ -11,6 +31,47 @@ const bareInput =
 
 const boxedInput =
   "h-11 w-full rounded-lg border border-input bg-card px-3 shadow-xs text-base outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:opacity-60 sm:text-sm"
+
+const DAY_ITEMS = Array.from({ length: 21 }, (_, index) => {
+  const day = index + 1
+  return { value: String(day), label: `${day} ${day === 1 ? "day" : "days"}` }
+})
+
+const TRAVELLER_ITEMS = Array.from({ length: 10 }, (_, index) => {
+  const count = index + 1
+  return {
+    value: String(count),
+    label: `${count} ${count === 1 ? "person" : "people"}`,
+  }
+})
+
+function parseLocalDate(value: string): Date | undefined {
+  if (!value) return undefined
+  const [year, month, day] = value.split("-").map(Number)
+  if (!year || !month || !day) return undefined
+  return new Date(year, month - 1, day)
+}
+
+function formatLocalIso(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function formatTriggerDate(date: Date): string {
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
+}
+
+function startOfToday(): Date {
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  return now
+}
 
 /** One cell of the combined search bar: a small label above the value. */
 function Cell({
@@ -31,20 +92,14 @@ function Cell({
         className
       )}
     >
-      <label htmlFor={htmlFor} className="block text-xs font-medium text-muted-foreground">
+      <label
+        htmlFor={htmlFor}
+        className="block text-xs font-medium text-muted-foreground"
+      >
         {label}
       </label>
       {children}
     </div>
-  )
-}
-
-function SelectChevron() {
-  return (
-    <ChevronDown
-      aria-hidden
-      className="pointer-events-none absolute right-4 bottom-3.5 size-4 text-muted-foreground"
-    />
   )
 }
 
@@ -67,10 +122,12 @@ export function TripForm({
   const [moreOpen, setMoreOpen] = useState(
     Boolean(initial.budget || initial.notes || initial.interests.length > 0)
   )
+  const [dateOpen, setDateOpen] = useState(false)
   const [missingTo, setMissingTo] = useState(false)
   const id = useId()
 
   const hasDestination = trip.to.trim().length > 0
+  const selectedDate = parseLocalDate(trip.startDate)
 
   function update<K extends keyof TripRequest>(key: K, value: TripRequest[K]) {
     setTrip((current) => ({ ...current, [key]: value }))
@@ -100,12 +157,21 @@ export function TripForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate aria-label="Plan a trip" className="glass rounded-3xl p-5 sm:p-8">
+    <form
+      onSubmit={handleSubmit}
+      noValidate
+      aria-label="Plan a trip"
+      className="glass relative rounded-3xl p-5 sm:p-8"
+    >
+      <span aria-hidden className="border-beam" />
       {/* Pace: shapes how packed the days are */}
       <fieldset className="flex flex-wrap gap-x-7 gap-y-2" disabled={disabled}>
         <legend className="sr-only">Pace of the trip</legend>
         {PACES.map((pace) => (
-          <label key={pace} className="inline-flex cursor-pointer items-center gap-2.5 text-base">
+          <label
+            key={pace}
+            className="inline-flex cursor-pointer items-center gap-2.5 text-base"
+          >
             <input
               type="radio"
               name={`${id}-pace`}
@@ -124,7 +190,7 @@ export function TripForm({
       </fieldset>
 
       {/* The combined bar */}
-      <div className="mt-5 grid divide-y divide-input overflow-hidden rounded-xl border border-input bg-card shadow-sm lg:grid-cols-[minmax(0,2fr)_minmax(0,1.15fr)_minmax(0,0.8fr)_minmax(0,1fr)] lg:divide-x lg:divide-y-0">
+      <div className="mt-5 grid divide-y divide-input overflow-hidden rounded-xl border border-input bg-card shadow-sm lg:grid-cols-[minmax(0,2fr)_minmax(0,1.15fr)_minmax(0,0.85fr)_minmax(0,1fr)] lg:divide-x lg:divide-y-0">
         <div className="relative grid divide-y lg:grid-cols-2 lg:divide-x lg:divide-y-0">
           <Cell label="From" htmlFor={`${id}-from`}>
             <input
@@ -163,7 +229,13 @@ export function TripForm({
             type="button"
             aria-label="Swap origin and destination"
             disabled={disabled}
-            onClick={() => setTrip((current) => ({ ...current, from: current.to, to: current.from }))}
+            onClick={() =>
+              setTrip((current) => ({
+                ...current,
+                from: current.to,
+                to: current.from,
+              }))
+            }
             className="absolute top-1/2 right-3 z-10 grid size-8 -translate-y-1/2 place-items-center rounded-full border bg-card text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none lg:right-auto lg:left-1/2 lg:-translate-x-1/2"
           >
             <ArrowLeftRight className="size-4 max-lg:rotate-90" aria-hidden />
@@ -171,54 +243,145 @@ export function TripForm({
         </div>
 
         <Cell label="Departure" htmlFor={`${id}-date`}>
-          <input
-            id={`${id}-date`}
-            type="date"
-            min={today()}
-            className={cn(bareInput, "[color-scheme:light] dark:[color-scheme:dark]")}
-            value={trip.startDate}
-            onChange={(event) => update("startDate", event.target.value)}
-            disabled={disabled}
-          />
+          <Popover open={dateOpen} onOpenChange={setDateOpen} modal={false}>
+            <div className="flex items-center gap-1.5">
+              <PopoverTrigger
+                id={`${id}-date`}
+                type="button"
+                disabled={disabled}
+                className={cn(
+                  bareInput,
+                  "flex items-center justify-between gap-2 text-left"
+                )}
+              >
+                <span
+                  className={cn(
+                    "truncate",
+                    !selectedDate && "font-normal text-muted-foreground"
+                  )}
+                >
+                  {selectedDate ? formatTriggerDate(selectedDate) : "Pick a date"}
+                </span>
+                {!selectedDate && (
+                  <CalendarIcon
+                    className="size-4 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
+                )}
+              </PopoverTrigger>
+
+              {selectedDate && !disabled && (
+                <button
+                  type="button"
+                  aria-label="Clear departure date"
+                  onClick={() => update("startDate", "")}
+                  className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+                >
+                  <X className="size-3.5" aria-hidden />
+                </button>
+              )}
+            </div>
+
+            <PopoverContent
+              align="start"
+              side="bottom"
+              sideOffset={12}
+              className="w-auto rounded-xl border border-border p-0 shadow-lg"
+            >
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                defaultMonth={selectedDate ?? new Date()}
+                disabled={{ before: startOfToday() }}
+                className="p-3 [--cell-size:--spacing(9)]"
+                onSelect={(day) => {
+                  update("startDate", day ? formatLocalIso(day) : "")
+                  setDateOpen(false)
+                }}
+              />
+            </PopoverContent>
+          </Popover>
         </Cell>
 
         <Cell label="Duration" htmlFor={`${id}-days`}>
-          <select
-            id={`${id}-days`}
-            className={cn(bareInput, "cursor-pointer appearance-none pr-6")}
-            value={trip.days}
-            onChange={(event) => update("days", Number(event.target.value))}
+          <Select
+            modal={false}
+            value={String(trip.days)}
+            items={DAY_ITEMS}
             disabled={disabled}
+            onValueChange={(value) => {
+              if (value) update("days", Number(value))
+            }}
           >
-            {Array.from({ length: 21 }, (_, index) => index + 1).map((day) => (
-              <option key={day} value={day}>
-                {day} {day === 1 ? "day" : "days"}
-              </option>
-            ))}
-          </select>
-          <SelectChevron />
+            <SelectTrigger
+              id={`${id}-days`}
+              className="h-auto w-full justify-between border-0 bg-transparent px-0 py-0 text-base font-medium shadow-none focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent [&_svg]:size-4 [&_svg]:text-muted-foreground"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent
+              align="start"
+              side="bottom"
+              sideOffset={12}
+              alignItemWithTrigger={false}
+              className="max-h-72 min-w-36 rounded-xl p-1 shadow-lg"
+            >
+              {DAY_ITEMS.map((item) => (
+                <SelectItem
+                  key={item.value}
+                  value={item.value}
+                  className="min-h-8 rounded-lg px-2.5 py-1.5 text-sm"
+                >
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Cell>
 
         <Cell label="Travellers" htmlFor={`${id}-people`}>
-          <select
-            id={`${id}-people`}
-            className={cn(bareInput, "cursor-pointer appearance-none pr-6")}
-            value={trip.travellers}
-            onChange={(event) => update("travellers", Number(event.target.value))}
+          <Select
+            modal={false}
+            value={String(trip.travellers)}
+            items={TRAVELLER_ITEMS}
             disabled={disabled}
+            onValueChange={(value) => {
+              if (value) update("travellers", Number(value))
+            }}
           >
-            {Array.from({ length: 10 }, (_, index) => index + 1).map((count) => (
-              <option key={count} value={count}>
-                {count} {count === 1 ? "person" : "people"}
-              </option>
-            ))}
-          </select>
-          <SelectChevron />
+            <SelectTrigger
+              id={`${id}-people`}
+              className="h-auto w-full justify-between border-0 bg-transparent px-0 py-0 text-base font-medium shadow-none focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent [&_svg]:size-4 [&_svg]:text-muted-foreground"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent
+              align="start"
+              side="bottom"
+              sideOffset={12}
+              alignItemWithTrigger={false}
+              className="max-h-72 min-w-36 rounded-xl p-1 shadow-lg"
+            >
+              {TRAVELLER_ITEMS.map((item) => (
+                <SelectItem
+                  key={item.value}
+                  value={item.value}
+                  className="min-h-8 rounded-lg px-2.5 py-1.5 text-sm"
+                >
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Cell>
       </div>
 
       {missingTo && (
-        <p id={`${id}-to-error`} role="alert" className="mt-2 flex items-center gap-2 text-sm font-medium text-destructive">
+        <p
+          id={`${id}-to-error`}
+          role="alert"
+          className="mt-2 flex items-center gap-2 text-sm font-medium text-destructive"
+        >
           <CircleAlert className="size-4 shrink-0" aria-hidden />
           Tell us where you are going to continue.
         </p>
@@ -229,7 +392,10 @@ export function TripForm({
         <div id={`${id}-more`} className="mt-5 space-y-5">
           <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
             <div className="space-y-1.5">
-              <label htmlFor={`${id}-budget`} className="block text-sm font-medium">
+              <label
+                htmlFor={`${id}-budget`}
+                className="block text-sm font-medium"
+              >
                 Budget
               </label>
               <input
@@ -245,7 +411,10 @@ export function TripForm({
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor={`${id}-notes`} className="block text-sm font-medium">
+              <label
+                htmlFor={`${id}-notes`}
+                className="block text-sm font-medium"
+              >
                 Anything else?
               </label>
               <input
@@ -297,15 +466,26 @@ export function TripForm({
           onClick={() => setMoreOpen((open) => !open)}
           className="inline-flex items-center gap-2 self-start rounded-md py-1 text-base font-medium focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
         >
-          {moreOpen ? <Minus className="size-4" aria-hidden /> : <Plus className="size-4" aria-hidden />}
-          {moreOpen ? "Hide budget, interests and notes" : "Add budget, interests and notes"}
+          {moreOpen ? (
+            <Minus className="size-4" aria-hidden />
+          ) : (
+            <Plus className="size-4" aria-hidden />
+          )}
+          {moreOpen
+            ? "Hide budget, interests and notes"
+            : "Add budget, interests and notes"}
         </button>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
           <p className="text-sm font-medium text-foreground/80 sm:max-w-52 sm:text-right">
             About a minute. You approve the draft first.
           </p>
-          <Button type="submit" size="cta" disabled={disabled} className="sm:min-w-44">
+          <Button
+            type="submit"
+            size="cta"
+            disabled={disabled}
+            className="sm:min-w-44"
+          >
             {submitLabel}
           </Button>
         </div>

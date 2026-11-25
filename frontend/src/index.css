@@ -52,6 +52,7 @@
 }
 
 :root {
+    color-scheme: light;
     --background: oklch(0.962 0.012 275);
     --foreground: oklch(0.21 0.035 265);
     --card: oklch(1 0 0);
@@ -89,6 +90,7 @@
 }
 
 .dark {
+    color-scheme: dark;
     --background: oklch(0.175 0.03 268);
     --foreground: oklch(0.955 0.01 275);
     --card: oklch(0.225 0.035 268);
@@ -140,9 +142,9 @@
 }
 
 @layer components {
-  /* The look of every card: white, rounded, soft shadow. Dark mode uses a border instead. */
+  /* The look of every card: white, rounded, soft shadow. Dark mode uses a crisp subtle border. */
   .surface {
-    @apply rounded-2xl bg-card text-card-foreground shadow-[0_1px_2px_rgb(15_23_60/0.06),0_8px_28px_rgb(15_23_60/0.08)] dark:border dark:shadow-none;
+    @apply rounded-2xl border border-border/70 bg-card text-card-foreground shadow-[0_1px_2px_rgb(15_23_60/0.05),0_8px_28px_rgb(15_23_60/0.07)] dark:border-border dark:shadow-[0_1px_2px_rgb(0_0_0/0.25)];
   }
 }
 
@@ -180,6 +182,78 @@
     .glass,
     .dark .glass {
       background-color: var(--card);
+    }
+  }
+}
+
+@property --beam-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes border-beam-spin {
+  to {
+    --beam-angle: 360deg;
+  }
+}
+
+@layer components {
+  /* Rotating rounded border beam supporting both light and dark modes while preserving frosted glass interior */
+  .border-beam {
+    --beam-tail: oklch(0.54 0.21 268 / 0.85);
+    --beam-mid: oklch(0.66 0.19 235);
+    --beam-head: oklch(0.84 0.14 205);
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .dark .border-beam {
+    --beam-tail: oklch(0.62 0.18 268 / 0.85);
+    --beam-mid: oklch(0.76 0.16 230);
+    --beam-head: oklch(0.93 0.08 205);
+  }
+
+  .border-beam::before,
+  .border-beam::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 2px;
+    background: conic-gradient(
+      from var(--beam-angle),
+      transparent 0deg 255deg,
+      var(--beam-tail) 295deg,
+      var(--beam-mid) 335deg,
+      var(--beam-head) 352deg,
+      transparent 360deg
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    animation: border-beam-spin 6s linear infinite;
+  }
+
+  .border-beam::after {
+    padding: 3px;
+    filter: blur(6px);
+    opacity: 0.7;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .border-beam::before,
+    .border-beam::after {
+      animation: none;
+      --beam-angle: 315deg;
     }
   }
 }

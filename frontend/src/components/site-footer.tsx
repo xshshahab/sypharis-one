@@ -1,9 +1,10 @@
 import type { ReactNode } from "react"
+import { Link, useLocation } from "react-router"
 import { ArrowUpRight, GitBranch, Globe, Mail } from "lucide-react"
 
 import logo from "@/assets/SypharisOne.webp"
 import { LinkedInIcon, XIcon } from "@/components/social-icons"
-import type { View } from "@/lib/route"
+import { ROUTES } from "@/lib/route"
 
 const AUTHOR = "Md Shahabuddin"
 
@@ -46,24 +47,24 @@ const CONTACT: { label: string; hint: string; href: string; icon: ReactNode; ext
 ]
 
 type SiteFooterProps = {
-  view: View
-  onNavigate: (view: View) => void
-  /** Scrolls to a section of the planner page, switching to it first if needed. */
+  /** Navigates to the planner page if needed and scrolls to a landing section. */
   onGoToSection: (id: string) => void
 }
 
 const linkClass =
   "rounded-sm text-band-foreground/75 transition-colors hover:text-band-foreground focus-visible:ring-3 focus-visible:ring-band-foreground/50 focus-visible:outline-none"
 
-export function SiteFooter({ view, onNavigate, onGoToSection }: SiteFooterProps) {
+export function SiteFooter({ onGoToSection }: SiteFooterProps) {
+  const { pathname } = useLocation()
+
   return (
     <footer className="bg-band text-band-foreground print:hidden">
       <div className="mx-auto max-w-7xl px-4 pt-14 pb-8">
         <div className="grid gap-12 md:grid-cols-[1.4fr_1fr_1.3fr]">
           <div>
-            <div className="flex items-center gap-2.5">
-              <img src={logo} alt="" className="h-8 w-auto invert mix-blend-screen" />
-              <span className="text-lg font-semibold tracking-tight">Sypharis One</span>
+            <div className="flex items-center gap-3">
+              <img src={logo} alt="" className="h-11 w-auto sm:h-12 invert mix-blend-screen" />
+              <span className="text-lg font-semibold tracking-tight sm:text-xl">Sypharis One</span>
             </div>
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-band-foreground/75">
               An AI trip planner. A supervisor picks the research, specialist agents gather flights, hotels, weather
@@ -90,14 +91,13 @@ export function SiteFooter({ view, onNavigate, onGoToSection }: SiteFooterProps)
                 </button>
               </li>
               <li>
-                <button
-                  type="button"
+                <Link
+                  to={ROUTES.architecture}
                   className={linkClass}
-                  onClick={() => onNavigate("architecture")}
-                  aria-current={view === "architecture" ? "page" : undefined}
+                  aria-current={pathname === ROUTES.architecture ? "page" : undefined}
                 >
                   Architecture
-                </button>
+                </Link>
               </li>
             </ul>
           </nav>

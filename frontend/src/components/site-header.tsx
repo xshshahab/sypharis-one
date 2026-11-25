@@ -1,10 +1,11 @@
 import { useState } from "react"
+import { Link, useLocation } from "react-router"
 import { Info, Network, Plane, RotateCcw, X } from "lucide-react"
 
 import logo from "@/assets/SypharisOne.webp"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Button } from "@/components/ui/button"
-import type { View } from "@/lib/route"
+import { ROUTES, scrollToId } from "@/lib/route"
 
 const NOTICE_KEY = "sypharis.notice.dismissed"
 
@@ -31,16 +32,16 @@ export function AnnouncementBar() {
 
   return (
     <div className="border-t-2 border-t-primary border-b bg-card print:hidden">
-      <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 text-sm">
-        <Info className="size-5 shrink-0 fill-primary text-primary-foreground" aria-hidden />
-        <p className="min-w-0 flex-1">
+      <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2.5 text-sm">
+        <Info className="size-4.5 shrink-0 fill-primary text-primary-foreground" aria-hidden />
+        <p className="min-w-0 flex-1 text-xs sm:text-sm">
           Flight guidance is advice, not live fares. Confirm prices and availability before you book.
         </p>
         <button
           type="button"
           onClick={dismiss}
           aria-label="Dismiss this notice"
-          className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
+          className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
         >
           <X className="size-4" aria-hidden />
         </button>
@@ -50,49 +51,56 @@ export function AnnouncementBar() {
 }
 
 const NAV_LINKS = [
-  { href: "#plan", label: "Plan a trip" },
-  { href: "#features", label: "Features" },
-  { href: "#how-it-works", label: "How it works" },
-  { href: "#popular", label: "Popular trips" },
-  { href: "#faq", label: "FAQ" },
+  { id: "plan", label: "Plan a trip" },
+  { id: "features", label: "Features" },
+  { id: "how-it-works", label: "How it works" },
+  { id: "popular", label: "Popular trips" },
+  { id: "faq", label: "FAQ" },
 ]
 
 type SiteHeaderProps = {
-  /** The page links only make sense on the landing page, where those sections exist. */
-  showLinks: boolean
+  /** Whether a trip is active (planning, draft review, or final plan) so "New trip" should appear. */
   showNewTrip: boolean
-  /** Which page is open: the header offers the other one. */
-  view: View
-  onHome: () => void
+  /** Route to return to when leaving /architecture for the planner. */
+  plannerRoute: string
   onNewTrip: () => void
-  onNavigate: (view: View) => void
 }
 
-export function SiteHeader({ showLinks, showNewTrip, view, onHome, onNewTrip, onNavigate }: SiteHeaderProps) {
+export function SiteHeader({ showNewTrip, plannerRoute, onNewTrip }: SiteHeaderProps) {
+  const { pathname } = useLocation()
+  const isHome = pathname === ROUTES.home
+  const isArchitecture = pathname === ROUTES.architecture
+
   return (
-    <header className="sticky top-0 z-40 border-b bg-card/80 backdrop-blur-md print:hidden">
-      <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 md:gap-8">
-        <button
-          type="button"
-          onClick={onHome}
+    <header className="sticky top-0 z-40 border-b bg-card/85 backdrop-blur-md print:hidden">
+      <div className="mx-auto flex h-18 max-w-7xl items-center gap-4 px-4 md:gap-8">
+        <Link
+          to={isArchitecture ? plannerRoute : ROUTES.home}
+          onClick={() => {
+            if (isHome) window.scrollTo({ top: 0, behavior: "smooth" })
+          }}
           aria-label="Sypharis One, home"
-          className="flex items-center gap-2.5 rounded-md focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
+          className="flex items-center gap-3 rounded-md focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
         >
           <img
             src={logo}
             alt=""
-            className="h-8 w-auto mix-blend-multiply dark:invert dark:mix-blend-screen"
+            className="h-11 w-auto sm:h-12 mix-blend-multiply dark:invert dark:mix-blend-screen"
           />
-          <span className="text-lg font-semibold tracking-tight whitespace-nowrap">Sypharis One</span>
-        </button>
+          <span className="text-lg font-semibold tracking-tight whitespace-nowrap sm:text-xl">Sypharis One</span>
+        </Link>
 
-        {showLinks && (
+        {isHome && (
           <nav aria-label="Page sections" className="hidden items-center gap-1 md:flex">
             {NAV_LINKS.map((link) => (
               <a
-                key={link.href}
-                href={link.href}
-                className="rounded-md px-3 py-2 text-base text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
+                key={link.id}
+                href={`#${link.id}`}
+                onClick={(event) => {
+                  event.preventDefault()
+                  scrollToId(link.id)
+                }}
+                className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
               >
                 {link.label}
               </a>
@@ -101,23 +109,27 @@ export function SiteHeader({ showLinks, showNewTrip, view, onHome, onNewTrip, on
         )}
 
         <div className="ml-auto flex items-center gap-2">
-          {view === "planner" && showNewTrip && (
+          {!isArchitecture && showNewTrip && (
             <Button variant="outline" size="pill" onClick={onNewTrip}>
               <RotateCcw aria-hidden />
               <span className="max-sm:sr-only">New trip</span>
             </Button>
           )}
 
-          {view === "planner" ? (
-            <Button variant="default" size="pill" onClick={() => onNavigate("architecture")}>
-              <Network aria-hidden />
-              <span className="max-sm:sr-only">Architecture</span>
-            </Button>
+          {isArchitecture ? (
+            <Link to={plannerRoute}>
+              <Button variant="default" size="pill" tabIndex={-1}>
+                <Plane aria-hidden />
+                <span className="max-sm:sr-only">{plannerRoute === ROUTES.home ? "Plan a trip" : "Back to trip"}</span>
+              </Button>
+            </Link>
           ) : (
-            <Button variant="default" size="pill" onClick={() => onNavigate("planner")}>
-              <Plane aria-hidden />
-              <span className="max-sm:sr-only">Plan a trip</span>
-            </Button>
+            <Link to={ROUTES.architecture}>
+              <Button variant="default" size="pill" tabIndex={-1}>
+                <Network aria-hidden />
+                <span className="max-sm:sr-only">Architecture</span>
+              </Button>
+            </Link>
           )}
 
           <ThemeToggle />

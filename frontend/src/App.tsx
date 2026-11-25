@@ -1,22 +1,24 @@
 import { useEffect, useReducer, useRef } from "react"
+import { ArrowRight, RotateCcw } from "lucide-react"
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router"
 
 import { ArchitecturePage } from "@/components/architecture-page"
 import { BlockedNotice } from "@/components/blocked-notice"
 import { DecisionPanel } from "@/components/decision-panel"
-import { ResearchCards } from "@/components/evidence-cards"
+import { ResearchSection, SidebarEvidence } from "@/components/evidence-cards"
 import { Hero } from "@/components/hero"
 import { Careful, ClosingCta, Faq, Features, HowItWorks, PopularTrips } from "@/components/landing-sections"
 import { ErrorNotice, Notice } from "@/components/notice"
 import { PlanView, type PlanTab } from "@/components/plan-view"
-import { AnnouncementBar, SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
+import { AnnouncementBar, SiteHeader } from "@/components/site-header"
 import { TripBand } from "@/components/trip-band"
 import { TripForm } from "@/components/trip-form"
 import { Button } from "@/components/ui/button"
 import { WorkingCard } from "@/components/working-card"
 import { approveTrip, planTrip, type TripPlan } from "@/lib/api"
 import { friendlyError, type FriendlyError } from "@/lib/errors"
-import { goTo, scrollToId, useView, type View } from "@/lib/route"
+import { ROUTES, scrollToId } from "@/lib/route"
 import { loadSession, saveSession } from "@/lib/session"
 import { buildMessage, EMPTY_TRIP, tripFacts, type TripRequest } from "@/lib/trip"
 
@@ -101,7 +103,6 @@ function reducer(state: State, action: Action): State {
       return { ...state, stage: "review", pending: null }
 
     case "prefill":
-      // Picking an example also clears a warning or error left over from the last try
       return {
         ...state,
         trip: action.trip,
@@ -116,27 +117,46 @@ function reducer(state: State, action: Action): State {
 }
 
 const DEFAULT_APPROVAL_TEXT =
-  "Approve the draft to get the final plan, or ask for changes and you get a revised one."
+  "Review the generated draft itinerary. Approve it to create your final polished plan, or request changes with feedback."
 
-function pageTitle(view: View, stage: Stage, to: string): string {
+function routeForStage(stage: Stage): string {
+  if (stage === "planning") return ROUTES.planning
+  if (stage === "review" || stage === "approving") return ROUTES.review
+  if (stage === "final") return ROUTES.plan
+  return ROUTES.home
+}
+
+function pageTitle(pathname: string, stage: Stage, to: string): string {
   const base = "Sypharis One"
-  if (view === "architecture") return `How it works · ${base}`
-  if (stage === "planning") return `Planning ${to} · ${base}`
-  if (stage === "review" || stage === "approving") return `Review your ${to} plan · ${base}`
-  if (stage === "final") return `${to} trip plan · ${base}`
+  const dest = to.trim() || "your trip"
+  if (pathname === ROUTES.architecture) return `How it works · ${base}`
+  if (pathname === ROUTES.planning || stage === "planning") return `Planning ${dest} · ${base}`
+  if (pathname === ROUTES.review) return `Review your ${dest} plan · ${base}`
+  if (pathname === ROUTES.plan) return `${dest} trip plan · ${base}`
   return `${base} · Trip planner`
+}
+
+function quickLinksFor(plan: TripPlan) {
+  const links = [{ id: "itinerary", label: "Itinerary" }]
+  if (plan.budget_results.trim()) links.push({ id: "budget", label: "Budget" })
+  if (plan.flight_results.trim()) links.push({ id: "flights", label: "Flights" })
+  if (plan.hotel_results.trim()) links.push({ id: "hotels", label: "Hotels" })
+  if (plan.weather_results.trim()) links.push({ id: "weather", label: "Weather" })
+  return links
 }
 
 export function App() {
   const [state, dispatch] = useReducer(reducer, undefined, initialState)
-  const view = useView()
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
   const controller = useRef<AbortController | null>(null)
   const firstRender = useRef(true)
+  const pendingScrollId = useRef<string | null>(null)
 
   const { stage, trip, plan, final } = state
-  const landing = stage === "idle" || stage === "blocked" || stage === "error"
+  const plannerRoute = routeForStage(stage)
 
-  // Keep a draft you are reading across a refresh
+  // Keep a draft or final plan across page refreshes
   useEffect(() => {
     if (plan && (stage === "review" || stage === "approving" || stage === "final" || stage === "blocked")) {
       saveSession({
@@ -151,29 +171,28 @@ export function App() {
   }, [stage, trip, plan, state.final])
 
   useEffect(() => {
-    document.title = pageTitle(view, stage, trip.to)
-  }, [view, stage, trip.to])
+    document.title = pageTitle(pathname, stage, trip.to)
+  }, [pathname, stage, trip.to])
 
-  // Switching between the planner and the Architecture page starts at the top of the page
-  const viewChanged = useRef(false)
-  useEffect(() => {
-    if (!viewChanged.current) {
-      viewChanged.current = true
-      return
-    }
-    window.scrollTo({ top: 0 })
-  }, [view])
-
-  // Moving to a new screen: put focus on its heading so keyboard and screen reader users start there.
-  // Review and "approving" are the same screen, so that change must not move focus.
-  const screen = view === "architecture" ? "architecture" : stage === "approving" ? "review" : stage
+  // On route change: scroll to requested section or top of page, and move focus to the main heading
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false
       return
     }
-    document.querySelector<HTMLElement>("[data-stage-heading]")?.focus()
-  }, [screen])
+
+    if (pendingScrollId.current) {
+      const targetId = pendingScrollId.current
+      pendingScrollId.current = null
+      requestAnimationFrame(() => scrollToId(targetId))
+    } else {
+      window.scrollTo({ top: 0 })
+    }
+
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>("[data-stage-heading]")?.focus()
+    })
+  }, [pathname])
 
   async function handleSubmit(next: TripRequest) {
     controller.current?.abort()
@@ -181,12 +200,24 @@ export function App() {
     controller.current = current
 
     dispatch({ type: "submit", trip: next })
+    navigate(ROUTES.planning)
 
     try {
-      dispatch({ type: "planned", plan: await planTrip(buildMessage(next), current.signal) })
+      const result = await planTrip(buildMessage(next), current.signal)
+      dispatch({ type: "planned", plan: result })
+      if (!result.guardrail_allowed) {
+        pendingScrollId.current = "plan"
+        navigate(ROUTES.home)
+      } else if (result.requires_approval) {
+        navigate(ROUTES.review)
+      } else {
+        navigate(ROUTES.plan)
+      }
     } catch (error) {
       if (current.signal.aborted) return
       dispatch({ type: "plan-failed", error: friendlyError(error) })
+      pendingScrollId.current = "plan"
+      navigate(ROUTES.home)
     }
   }
 
@@ -202,6 +233,7 @@ export function App() {
     try {
       const result = await approveTrip(plan.thread_id, approved, feedback, current.signal)
       dispatch({ type: "decided", final: result })
+      navigate(ROUTES.plan)
     } catch (error) {
       if (current.signal.aborted) return
       dispatch({ type: "decide-failed", error: friendlyError(error) })
@@ -210,11 +242,15 @@ export function App() {
 
   function cancelRequest() {
     controller.current?.abort()
-    dispatch({ type: stage === "planning" ? "cancel-plan" : "cancel-decide" })
+    if (stage === "planning") {
+      dispatch({ type: "cancel-plan" })
+      navigate(ROUTES.home)
+    } else {
+      dispatch({ type: "cancel-decide" })
+    }
   }
 
   function startOver() {
-    // A draft takes about a minute to make: do not throw one away by accident
     if (
       (stage === "review" || stage === "approving") &&
       !window.confirm("Discard this draft and start a new trip?")
@@ -223,61 +259,98 @@ export function App() {
     }
     controller.current?.abort()
     dispatch({ type: "reset" })
+    navigate(ROUTES.home)
     window.scrollTo({ top: 0 })
   }
 
   function pickPopular(next: TripRequest) {
     dispatch({ type: "prefill", trip: next })
-    // The form remounts on the next render, so wait for it before scrolling to it
     requestAnimationFrame(() => document.getElementById("plan")?.scrollIntoView({ block: "center" }))
   }
 
-  // From the footer: go to the planner page if needed, then scroll to a section on it
   function goToSection(id: string) {
-    if (view !== "planner") goTo("planner")
-    setTimeout(() => {
-      if (document.getElementById(id)) scrollToId(id)
-      else window.scrollTo({ top: 0 })
-    }, 60)
+    if (pathname !== ROUTES.home) {
+      pendingScrollId.current = id
+      navigate(ROUTES.home)
+    } else if (document.getElementById(id)) {
+      scrollToId(id)
+    } else {
+      window.scrollTo({ top: 0 })
+    }
   }
 
   const facts = tripFacts(trip)
 
-  let content
-  if (landing) {
-    content = (
-      <>
-        <Hero>
-          <div id="plan" className="scroll-mt-24 space-y-4">
-            {stage === "blocked" && plan && (
-              <BlockedNotice reason={plan.guardrail_reason} onPick={pickPopular} />
-            )}
-            {stage === "error" && state.error && (
-              <ErrorNotice
-                error={state.error}
-                actions={
-                  <Button size="pill" onClick={() => handleSubmit(trip)}>
-                    Try again
+  const landingElement = (
+    <>
+      <Hero>
+        <div id="plan" className="scroll-mt-24 space-y-4">
+          {stage === "review" && plan && (
+            <Notice
+              tone="info"
+              title={`You have a draft itinerary for ${trip.to || "your trip"}`}
+              actions={
+                <Link to={ROUTES.review}>
+                  <Button size="pill" tabIndex={-1}>
+                    Resume draft review
+                    <ArrowRight aria-hidden />
                   </Button>
-                }
-              />
-            )}
-            <TripForm key={state.formKey} initial={trip} onSubmit={handleSubmit} />
-          </div>
-        </Hero>
-
-        <div className="mx-auto max-w-7xl space-y-24 px-4 py-20 sm:space-y-28 sm:py-28">
-          <Features />
-          <HowItWorks />
-          <PopularTrips onPick={pickPopular} />
-          <Careful onArchitecture={() => goTo("architecture")} />
-          <Faq />
-          <ClosingCta onStart={() => scrollToId("plan")} />
+                </Link>
+              }
+            >
+              <p className="text-muted-foreground">
+                Return to your draft to approve it or request changes, or fill out the form below for a new trip.
+              </p>
+            </Notice>
+          )}
+          {stage === "final" && final && (
+            <Notice
+              tone="success"
+              title={`Your ${trip.to || "trip"} plan is ready`}
+              actions={
+                <Link to={ROUTES.plan}>
+                  <Button size="pill" tabIndex={-1}>
+                    View final plan
+                    <ArrowRight aria-hidden />
+                  </Button>
+                </Link>
+              }
+            >
+              <p className="text-muted-foreground">
+                Reopen your finalized itinerary and research breakdown anytime, or start a new search below.
+              </p>
+            </Notice>
+          )}
+          {stage === "blocked" && plan && (
+            <BlockedNotice reason={plan.guardrail_reason} onPick={pickPopular} />
+          )}
+          {stage === "error" && state.error && (
+            <ErrorNotice
+              error={state.error}
+              actions={
+                <Button size="pill" onClick={() => handleSubmit(trip)}>
+                  Try again
+                </Button>
+              }
+            />
+          )}
+          <TripForm key={state.formKey} initial={trip} onSubmit={handleSubmit} />
         </div>
-      </>
-    )
-  } else if (stage === "planning") {
-    content = (
+      </Hero>
+
+      <div className="mx-auto max-w-7xl space-y-24 px-4 py-20 sm:space-y-28 sm:py-28">
+        <Features />
+        <HowItWorks />
+        <PopularTrips onPick={pickPopular} />
+        <Careful onArchitecture={() => navigate(ROUTES.architecture)} />
+        <Faq />
+        <ClosingCta onStart={() => scrollToId("plan")} />
+      </div>
+    </>
+  )
+
+  const planningElement =
+    stage === "planning" ? (
       <>
         <TripBand
           from={trip.from}
@@ -286,7 +359,7 @@ export function App() {
           step={1}
           badge={{ label: "Researching", tone: "neutral" }}
         />
-        <div className="mx-auto max-w-2xl px-4 py-10">
+        <div className="mx-auto max-w-2xl px-4 py-12">
           <WorkingCard
             title="Researching your trip"
             description="Your request is checked first, then the research runs and a draft is written."
@@ -299,29 +372,35 @@ export function App() {
           />
         </div>
       </>
+    ) : (
+      <Navigate to={plannerRoute} replace />
     )
-  } else if ((stage === "review" || stage === "approving") && plan) {
-    content = (
+
+  const reviewElement =
+    (stage === "review" || stage === "approving") && plan ? (
       <>
         <TripBand
           from={trip.from}
           to={trip.to}
           facts={facts}
           step={2}
-          badge={{ label: "Draft", tone: "draft" }}
+          badge={{ label: "Draft · Review", tone: "draft" }}
+          quickLinks={quickLinksFor(plan)}
+          onJump={scrollToId}
         />
-        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 pb-40 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:pb-12">
-          <div className="min-w-0 space-y-4">
-            <Notice tone="info" title="This is a draft">
+        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 pb-36 lg:grid-cols-[minmax(0,1fr)_23rem] lg:items-start lg:gap-8 lg:pb-14">
+          <div className="min-w-0 space-y-6">
+            <Notice tone="info" title="This is a draft — review before finalizing">
               <p className="text-muted-foreground">
-                Nothing is final until you approve it. Read it through, check how we read your request, then
-                approve or ask for changes.
+                Nothing is final until you approve it. Check the day-by-day schedule, budget breakdown, and request
+                summary, then approve or send revision notes.
               </p>
             </Notice>
-            <PlanView tabs={[{ id: "draft", label: "Draft itinerary", text: plan.answer }]} />
+            <PlanView tabs={[{ id: "draft", label: "Draft itinerary", text: plan.answer }]} badge="Draft" />
+            <ResearchSection plan={plan} />
           </div>
 
-          <aside className="space-y-4 lg:sticky lg:top-6 lg:max-h-[calc(100svh-3rem)] lg:overflow-y-auto lg:pr-1">
+          <aside className="space-y-5 lg:sticky lg:top-22">
             <DecisionPanel
               busy={state.pending}
               error={state.error}
@@ -330,17 +409,24 @@ export function App() {
               onRequestChanges={(feedback) => handleDecision(false, feedback)}
               onCancel={cancelRequest}
             />
-            <ResearchCards plan={plan} />
+            <SidebarEvidence plan={plan} />
           </aside>
         </div>
       </>
+    ) : (
+      <Navigate to={stage === "final" ? ROUTES.plan : ROUTES.home} replace />
     )
-  } else if (stage === "final" && final) {
+
+  const finalElement = (() => {
+    if (stage !== "final" || !final) {
+      return <Navigate to={stage === "review" || stage === "approving" ? ROUTES.review : ROUTES.home} replace />
+    }
+
     const tabs: PlanTab[] = [{ id: "final", label: "Final plan", text: final.answer }]
     const draft = final.itinerary || plan?.answer || ""
-    if (final !== plan && draft.trim()) tabs.push({ id: "draft", label: "Draft", text: draft })
+    if (final !== plan && draft.trim()) tabs.push({ id: "draft", label: "Original draft", text: draft })
 
-    content = (
+    return (
       <>
         <TripBand
           from={trip.from}
@@ -348,47 +434,70 @@ export function App() {
           facts={facts}
           step={3}
           badge={{ label: "Final plan", tone: "final" }}
+          quickLinks={quickLinksFor(final)}
+          onJump={scrollToId}
         />
-        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
-          <div className="min-w-0 space-y-4">
-            {final.approved === false && final.human_feedback.trim() && (
+        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 pb-14 lg:grid-cols-[minmax(0,1fr)_23rem] lg:items-start lg:gap-8">
+          <div className="min-w-0 space-y-6">
+            {final.approved === false && final.human_feedback.trim() ? (
               <Notice tone="info" title="Updated with your changes">
                 <p className="text-muted-foreground">&ldquo;{final.human_feedback}&rdquo;</p>
               </Notice>
+            ) : (
+              <Notice tone="success" title="Your final trip plan is ready">
+                <p className="text-muted-foreground">
+                  Approved and finalized. Copy or print your itinerary, and double-check live fares and availability
+                  before booking.
+                </p>
+              </Notice>
             )}
             <PlanView tabs={tabs} />
+            <ResearchSection plan={final} />
             <div className="print:hidden">
               <Button variant="outline" size="cta" onClick={startOver}>
-                Plan another trip
+                <RotateCcw aria-hidden />
+                <span>Plan another trip</span>
               </Button>
             </div>
           </div>
 
-          <aside className="space-y-4 lg:sticky lg:top-6 lg:max-h-[calc(100svh-3rem)] lg:overflow-y-auto lg:pr-1">
-            <ResearchCards plan={final} />
+          <aside className="space-y-5 lg:sticky lg:top-22">
+            <SidebarEvidence plan={final} />
           </aside>
         </div>
       </>
     )
-  }
+  })()
 
   return (
     <div className="flex min-h-svh flex-col">
       <AnnouncementBar />
       <SiteHeader
-        showLinks={view === "planner" && landing}
         showNewTrip={stage !== "idle"}
-        view={view}
-        onHome={view === "planner" ? startOver : () => goTo("planner")}
+        plannerRoute={plannerRoute}
         onNewTrip={startOver}
-        onNavigate={goTo}
       />
       <main className="flex-1">
-        {view === "architecture" && <ArchitecturePage onStart={() => goTo("planner")} />}
-        {/* Kept mounted but hidden on the Architecture page, so a half-filled form or a running plan is not lost */}
-        <div hidden={view === "architecture"}>{content}</div>
+        <Routes>
+          <Route path={ROUTES.home} element={landingElement} />
+          <Route path={ROUTES.planning} element={planningElement} />
+          <Route path={ROUTES.review} element={reviewElement} />
+          <Route path={ROUTES.plan} element={finalElement} />
+          <Route
+            path={ROUTES.architecture}
+            element={
+              <ArchitecturePage
+                onStart={() => {
+                  pendingScrollId.current = "plan"
+                  navigate(ROUTES.home)
+                }}
+              />
+            }
+          />
+          <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
+        </Routes>
       </main>
-      <SiteFooter view={view} onNavigate={goTo} onGoToSection={goToSection} />
+      <SiteFooter onGoToSection={goToSection} />
     </div>
   )
 }

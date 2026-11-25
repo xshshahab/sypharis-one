@@ -2,13 +2,24 @@ import type { ReactNode } from "react"
 import {
   ArrowDown,
   ArrowRight,
+  BedDouble,
+  Bot,
+  CloudSun,
+  Cpu,
   Database,
+  FileCheck2,
+  FilePenLine,
   Gauge,
+  GitBranch,
   Hand,
   Monitor,
+  PauseCircle,
+  Plane,
   Plug,
   Server,
+  ShieldAlert,
   ShieldCheck,
+  Wallet,
   Workflow,
 } from "lucide-react"
 
@@ -31,7 +42,7 @@ function Section({
 }) {
   return (
     <section id={id} aria-labelledby={`${id}-heading`} className="scroll-mt-24">
-      <h2 id={`${id}-heading`} className="text-2xl font-light tracking-tight">
+      <h2 id={`${id}-heading`} className="text-2xl font-semibold tracking-tight sm:text-3xl">
         {title}
       </h2>
       {intro && <p className="mt-2 max-w-3xl text-base leading-relaxed text-muted-foreground">{intro}</p>}
@@ -40,154 +51,358 @@ function Section({
   )
 }
 
-function Tag({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "primary" | "amber" | "green" }) {
+function Tag({
+  children,
+  tone = "neutral",
+  className,
+}: {
+  children: ReactNode
+  tone?: "neutral" | "primary" | "amber" | "green" | "rose"
+  className?: string
+}) {
   const tones = {
     neutral: "bg-muted text-muted-foreground",
     primary: "bg-primary/10 text-primary",
-    amber: "bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-200",
-    green: "bg-emerald-100 text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-200",
+    amber: "bg-amber-500/15 text-amber-800 dark:text-amber-200",
+    green: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200",
+    rose: "bg-rose-500/15 text-rose-800 dark:text-rose-200",
   }
-  return <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap", tones[tone])}>{children}</span>
+  return (
+    <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap", tones[tone], className)}>
+      {children}
+    </span>
+  )
 }
 
-function DownArrow({ label }: { label: string }) {
+function LayerLabel({ number, title, badge }: { number: string; title: string; badge: string }) {
   return (
-    <div className="flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
-      <ArrowDown className="size-4" aria-hidden />
-      <span>{label}</span>
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
+        <span className="grid size-6 place-items-center rounded-md bg-primary text-xs font-semibold text-primary-foreground">
+          {number}
+        </span>
+        <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">{title}</span>
+      </div>
+      <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[11px] text-muted-foreground">{badge}</span>
+    </div>
+  )
+}
+
+function FlowConnector({ label, detail }: { label: string; detail?: string }) {
+  return (
+    <div className="flex flex-col items-center py-2.5" aria-hidden>
+      <div className="h-3 w-px bg-border" />
+      <div className="flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs shadow-2xs">
+        <ArrowDown className="size-3.5 text-primary" />
+        <span className="font-medium text-foreground">{label}</span>
+        {detail && <span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">· {detail}</span>}
+      </div>
+      <div className="h-3 w-px bg-border" />
     </div>
   )
 }
 
 // ---------------------------------------------------------------- the system map
 
-type FlowStep = { name: string; note: string; kind: "guard" | "specialist" | "draft" | "pause" | "final" }
-
-const FLOW: FlowStep[] = [
-  { name: "supervisor", note: "guardrail + routing", kind: "guard" },
-  { name: "flight_agent", note: "flights", kind: "specialist" },
-  { name: "hotel_agent", note: "hotels", kind: "specialist" },
-  { name: "weather_agent", note: "weather", kind: "specialist" },
-  { name: "budget_agent", note: "budget check", kind: "specialist" },
-  { name: "itinerary_agent", note: "draft plan", kind: "draft" },
-  { name: "human_approval", note: "pauses for you", kind: "pause" },
-  { name: "final_agent", note: "final plan", kind: "final" },
+const SPECIALISTS = [
+  { icon: Plane, label: "Flights", agent: "flight_agent", note: "Airports & routes" },
+  { icon: BedDouble, label: "Hotels", agent: "hotel_agent", note: "Live web search" },
+  { icon: CloudSun, label: "Weather", agent: "weather_agent", note: "Forecast & alerts" },
+  { icon: Wallet, label: "Budget", agent: "budget_agent", note: "Cost feasibility" },
 ]
-
-const FLOW_STYLE: Record<FlowStep["kind"], string> = {
-  guard: "border-amber-300 bg-amber-50 dark:border-amber-500/40 dark:bg-amber-500/10",
-  specialist: "border-primary/25 bg-primary/5",
-  draft: "border-border bg-muted",
-  pause: "border-primary bg-primary text-primary-foreground",
-  final: "border-emerald-300 bg-emerald-50 dark:border-emerald-500/40 dark:bg-emerald-500/10",
-}
-
-function Box({
-  icon,
-  title,
-  children,
-  className,
-}: {
-  icon: ReactNode
-  title: string
-  children: ReactNode
-  className?: string
-}) {
-  return (
-    <div className={cn("rounded-xl border bg-card p-4", className)}>
-      <p className="flex items-center gap-2 text-sm font-semibold">
-        <span className="text-primary" aria-hidden>
-          {icon}
-        </span>
-        {title}
-      </p>
-      <div className="mt-1.5 text-sm text-muted-foreground">{children}</div>
-    </div>
-  )
-}
 
 function SystemMap() {
   return (
-    <figure className="surface p-5 sm:p-8">
-      <Box icon={<Monitor className="size-4" />} title="Browser: the React app">
-        Trip form, the draft review screen with your decision, and the final plan.
-      </Box>
-
-      <DownArrow label="POST /api/v1/travel  ·  POST /api/v1/travel/approve" />
-
-      <Box icon={<Server className="size-4" />} title="FastAPI backend (port 8000)">
-        Validates the request, runs the agent in a worker thread, answers with JSON. CORS allows only your frontend.
-      </Box>
-
-      <DownArrow label="run_travel_agent()  ·  resume_travel_agent()" />
-
-      <div className="rounded-xl border-2 border-primary/30 p-4 sm:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="flex items-center gap-2 text-sm font-semibold">
-            <Workflow className="size-4 text-primary" aria-hidden />
-            LangGraph: one shared state, nine steps
+    <figure className="surface overflow-hidden p-5 sm:p-8">
+      {/* Diagram header & legend */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-border/80 pb-4">
+        <div>
+          <p className="text-base font-semibold tracking-tight">End-to-End System Architecture</p>
+          <p className="text-xs text-muted-foreground sm:text-sm">
+            Follow a request from your browser, through the AI supervisor and specialist agents, to your final approval.
           </p>
-          <Tag tone="primary">backend.py + agents/</Tag>
         </div>
+        <div className="flex flex-wrap gap-1.5" aria-label="Diagram legend">
+          <Tag tone="amber">Safety / Gate</Tag>
+          <Tag tone="primary">AI Specialist</Tag>
+          <Tag tone="neutral">Human Checkpoint</Tag>
+          <Tag tone="green">Final Output</Tag>
+        </div>
+      </div>
 
-        <ol className="mt-4 flex flex-wrap items-stretch gap-x-1 gap-y-2" aria-label="Order of the steps">
-          {FLOW.map((step, index) => (
-            <li key={step.name} className="flex items-center gap-1">
-              <span className={cn("rounded-lg border px-3 py-2 text-sm leading-tight", FLOW_STYLE[step.kind])}>
-                <span className="block font-medium">{step.name}</span>
-                <span className={cn("block text-xs", step.kind === "pause" ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                  {step.note}
+      {/* LAYER 1: CLIENT */}
+      <div className="rounded-2xl border border-border bg-muted/25 p-4 sm:p-5">
+        <LayerLabel number="1" title="User Interface" badge="React 19 · TypeScript · React Router" />
+        <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr_auto_1fr] md:items-center">
+          <div className="rounded-xl border border-border bg-card p-3.5 shadow-2xs">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <Monitor className="size-4 text-primary" aria-hidden />
+              1. Trip Form
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Destination, dates, travellers, pace, and optional budget &amp; interests.
+            </p>
+          </div>
+
+          <ArrowRight className="mx-auto hidden size-4 text-muted-foreground md:block" aria-hidden />
+
+          <div className="rounded-xl border border-border bg-card p-3.5 shadow-2xs">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <FilePenLine className="size-4 text-primary" aria-hidden />
+              2. Draft Review
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Inspect the draft itinerary alongside live research, then approve or request changes.
+            </p>
+          </div>
+
+          <ArrowRight className="mx-auto hidden size-4 text-muted-foreground md:block" aria-hidden />
+
+          <div className="rounded-xl border border-border bg-card p-3.5 shadow-2xs">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <FileCheck2 className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+              3. Final Plan
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Polished day-by-day plan with copy, print/PDF, and draft comparison.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <FlowConnector label="HTTPS / JSON API" detail="POST /api/v1/travel · POST /api/v1/travel/approve" />
+
+      {/* LAYER 2: API */}
+      <div className="rounded-2xl border border-border bg-muted/25 p-4 sm:p-5">
+        <LayerLabel number="2" title="API Gateway" badge="FastAPI · Port 8000" />
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-border bg-card p-3.5">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <Server className="size-4 text-primary" aria-hidden />
+              Request Validation
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Validates incoming payloads with Pydantic and enforces strict CORS origins for the frontend.
+            </p>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-3.5">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <Cpu className="size-4 text-primary" aria-hidden />
+              Non-Blocking Workers
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Runs multi-agent research in worker threads so health checks and other requests stay responsive.
+            </p>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-3.5">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <GitBranch className="size-4 text-primary" aria-hidden />
+              Session Threading
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Issues a unique <code className="rounded bg-muted px-1 font-mono">thread_id</code> so paused drafts can resume seamlessly.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <FlowConnector label="Orchestration Entry" detail="run_travel_agent() · resume_travel_agent()" />
+
+      {/* LAYER 3: LANGGRAPH WORKFLOW + POSTGRES */}
+      <div className="rounded-2xl border-2 border-primary/30 bg-primary/[0.03] p-4 sm:p-6">
+        <LayerLabel number="3" title="AI Agent Workflow & State Memory" badge="LangGraph · Shared TravelState" />
+
+        <div className="space-y-4">
+          {/* Step A: Supervisor + Guardrail Branch */}
+          <div className="grid gap-3 lg:grid-cols-[1.35fr_auto_1fr] lg:items-center">
+            <div className="rounded-xl border border-amber-400/50 bg-amber-500/10 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="flex items-center gap-2 text-sm font-semibold">
+                  <ShieldCheck className="size-4 text-amber-600 dark:text-amber-300" aria-hidden />
+                  Supervisor &amp; Safety Guardrail
+                </p>
+                <span className="rounded bg-background/70 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                  supervisor
                 </span>
+              </div>
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                First verifies the request is genuinely about travel. Then extracts destination, budget, and style, and
+                selects <strong className="font-medium text-foreground">only the specialists needed</strong>.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+              <ArrowRight className="hidden size-4 lg:block" aria-hidden />
+              <span className="rounded-full border border-rose-300/60 bg-rose-500/10 px-2.5 py-0.5 text-[11px] font-medium text-rose-700 dark:text-rose-300">
+                If not travel →
               </span>
-              {index < FLOW.length - 1 && <ArrowRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />}
-            </li>
-          ))}
-        </ol>
+            </div>
 
-        <ul className="mt-4 space-y-1.5 text-sm text-muted-foreground">
-          <li>
-            <strong className="font-medium text-foreground">Only the specialists the supervisor picked run.</strong> The
-            itinerary step is always included.
-          </li>
-          <li>
-            <strong className="font-medium text-foreground">If the guardrail blocks the request,</strong> the run goes to{" "}
-            <code className="rounded bg-muted px-1 text-xs">guardrail_blocked</code> and ends there with the reason.
-          </li>
-          <li>
-            <strong className="font-medium text-foreground">At human_approval the run stops</strong> and waits. It
-            continues only when you approve or ask for changes.
-          </li>
-        </ul>
+            <div className="rounded-xl border border-rose-400/40 bg-rose-500/10 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="flex items-center gap-2 text-sm font-semibold text-rose-900 dark:text-rose-200">
+                  <ShieldAlert className="size-4 text-rose-600 dark:text-rose-300" aria-hidden />
+                  Blocked Early
+                </p>
+                <span className="rounded bg-background/70 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                  guardrail_blocked
+                </span>
+              </div>
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                Stops immediately and returns the reason to the user. Zero tools or specialist agents run.
+              </p>
+            </div>
+          </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg bg-muted px-4 py-3 text-sm">
-          <Database className="size-4 shrink-0 text-primary" aria-hidden />
-          <p className="min-w-0 flex-1">
-            <strong className="font-medium">PostgreSQL (Render)</strong> stores the state after every step under a{" "}
-            <code className="rounded bg-card px-1 text-xs">thread_id</code>. That is how the run can pause and later resume.
-          </p>
+          <div className="flex justify-center">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+              <ArrowDown className="size-3.5" aria-hidden />
+              If valid travel request: run selected specialists
+            </span>
+          </div>
+
+          {/* Step B: Specialist Pipeline + Draft */}
+          <div className="rounded-xl border border-dashed border-primary/35 bg-card/80 p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="flex items-center gap-2 text-xs font-semibold tracking-wide text-primary uppercase">
+                <Bot className="size-4" aria-hidden />
+                Dynamic Specialist Research Pipeline
+              </p>
+              <span className="text-xs text-muted-foreground">Skipped automatically if not needed</span>
+            </div>
+
+            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
+              {SPECIALISTS.map(({ icon: Icon, label, agent, note }) => (
+                <div key={agent} className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                  <p className="flex items-center gap-1.5 text-sm font-semibold">
+                    <Icon className="size-3.5 text-primary" aria-hidden />
+                    {label}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>
+                  <p className="mt-1.5 font-mono text-[10px] text-primary/80">{agent}</p>
+                </div>
+              ))}
+
+              <div className="rounded-lg border border-border bg-muted/60 p-3">
+                <p className="flex items-center gap-1.5 text-sm font-semibold">
+                  <Workflow className="size-3.5 text-foreground" aria-hidden />
+                  Draft Writer
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Combines all findings</p>
+                <p className="mt-1.5 font-mono text-[10px] text-muted-foreground">itinerary_agent</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Step C: Human Pause <-> PostgreSQL -> Final Plan */}
+          <div className="grid gap-3 lg:grid-cols-[1fr_auto_1fr] lg:items-stretch">
+            <div className="flex flex-col justify-between rounded-xl border-2 border-primary bg-primary p-4 text-primary-foreground shadow-sm">
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-2 text-sm font-semibold">
+                    <PauseCircle className="size-4" aria-hidden />
+                    Human Review Checkpoint
+                  </p>
+                  <span className="rounded bg-primary-foreground/15 px-1.5 py-0.5 font-mono text-[11px]">
+                    human_approval
+                  </span>
+                </div>
+                <p className="mt-1.5 text-xs leading-relaxed text-primary-foreground/85">
+                  The workflow <strong>pauses here</strong> via LangGraph <code className="rounded bg-primary-foreground/15 px-1">interrupt()</code> and sends the draft back to your screen. It resumes only when you approve or request changes.
+                </p>
+              </div>
+              <div className="mt-3 flex items-center gap-2 rounded-lg bg-primary-foreground/10 px-3 py-2 text-xs">
+                <Database className="size-4 shrink-0" aria-hidden />
+                <span>
+                  Saved in <strong>PostgreSQL (Render)</strong> by <code className="font-mono">thread_id</code>
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center justify-center gap-1 text-xs text-muted-foreground">
+              <ArrowRight className="hidden size-4 text-primary lg:block" aria-hidden />
+              <ArrowDown className="size-4 text-primary lg:hidden" aria-hidden />
+              <span className="text-center font-medium text-foreground">Approve or Revise</span>
+            </div>
+
+            <div className="flex flex-col justify-between rounded-xl border border-emerald-400/50 bg-emerald-500/10 p-4">
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+                    <FileCheck2 className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                    Final Polish Agent
+                  </p>
+                  <span className="rounded bg-background/70 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                    final_agent
+                  </span>
+                </div>
+                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                  Applies your approval or revision notes, formats the complete 7-section itinerary, and stores the
+                  finished plan in the checkpoint so reopening the thread never re-runs the AI.
+                </p>
+              </div>
+              <p className="mt-3 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                Returned to browser as the Final Plan
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
-      <DownArrow label="tools through MCP, and the language model" />
+      <FlowConnector label="Standardized Tool & Model Layer" detail="Model Context Protocol (MCP) · Groq Inference" />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Box icon={<Plug className="size-4" />} title="AviationStack MCP">
-          Flights. Started with <code className="rounded bg-muted px-1 text-xs">uvx</code>.
-        </Box>
-        <Box icon={<Plug className="size-4" />} title="Tavily MCP">
-          Hotel search. A remote server over HTTP.
-        </Box>
-        <Box icon={<Plug className="size-4" />} title="Weather MCP">
-          Our own server, using OpenWeather.
-        </Box>
-        <Box icon={<Gauge className="size-4" />} title="Groq: gpt-oss-120b">
-          Every LLM step. Low reasoning effort, temperature 0.
-        </Box>
+      {/* LAYER 4: TOOLS & LLM */}
+      <div className="rounded-2xl border border-border bg-muted/25 p-4 sm:p-5">
+        <LayerLabel number="4" title="External Tools, LLM & Observability" badge="MCP Servers · Groq · LangSmith" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-border bg-card p-3.5">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <Plug className="size-4 text-primary" aria-hidden />
+              AviationStack MCP
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Flight schedules, airports, and airline data. Launched locally via <code className="rounded bg-muted px-1">uvx</code>.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-3.5">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <Plug className="size-4 text-primary" aria-hidden />
+              Tavily MCP
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Live web search for hotels, stays, and neighborhood options over HTTP.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-3.5">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <Plug className="size-4 text-primary" aria-hidden />
+              Weather MCP
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Custom MCP server built for this project using live OpenWeather forecasts.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-3.5">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <Gauge className="size-4 text-primary" aria-hidden />
+              Groq (gpt-oss-120b)
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Powers reasoning and writing across every agent (<code className="rounded bg-muted px-1">temp = 0</code>, low effort).
+            </p>
+          </div>
+        </div>
       </div>
 
-      <figcaption className="mt-5 border-t pt-4 text-xs text-muted-foreground">
-        Agents never call the APIs directly. Tools go through the MCP client, and every step reads and writes the same
-        shared state. Runs are traced in LangSmith.
+      <figcaption className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-border/80 pt-4 text-xs text-muted-foreground">
+        <span>
+          Agents never call third-party APIs directly — all external tools go through the MCP client and read/write one
+          shared state.
+        </span>
+        <span className="font-medium text-foreground">Traced end-to-end in LangSmith</span>
       </figcaption>
     </figure>
   )
@@ -334,7 +549,7 @@ const STACK: [string, string][] = [
   ["API", "FastAPI, Uvicorn"],
   ["Storage", "PostgreSQL on Render (LangGraph checkpoints)"],
   ["Tracing", "LangSmith, to follow each run and its model calls"],
-  ["Frontend", "React 19, TypeScript, Vite, Tailwind CSS 4"],
+  ["Frontend", "React 19, TypeScript, React Router, Vite, Tailwind CSS 4"],
   ["Packaging", "Docker Compose, nginx"],
 ]
 
@@ -396,7 +611,7 @@ export function ArchitecturePage({ onStart }: { onStart: () => void }) {
       <section className="bg-band text-band-foreground print:bg-white print:text-black">
         <div className="mx-auto max-w-7xl px-4 pt-10 pb-8 sm:pt-14">
           <div className="flex flex-wrap items-center gap-3">
-            <Tag tone="green">Final version · Phase 3</Tag>
+            <Tag className="bg-emerald-300 font-semibold text-emerald-950">Final version · Phase 3</Tag>
           </div>
           <h1
             data-stage-heading
@@ -444,8 +659,8 @@ export function ArchitecturePage({ onStart }: { onStart: () => void }) {
 
         <Section
           id="system"
-          title="The system"
-          intro="Four layers: the browser, the API, the agent graph, and the tools and model it uses. The database sits beside the graph and remembers where each plan is."
+          title="System design"
+          intro="Four clear layers from the browser to external tools and persistent memory — built so every decision is inspectable and human-approved."
         >
           <SystemMap />
         </Section>
@@ -473,31 +688,35 @@ export function ArchitecturePage({ onStart }: { onStart: () => void }) {
           </ol>
         </Section>
 
-        <Section id="agents" title="The steps" intro="Nine steps. Five call the language model, three use MCP tools (flights does both), and two make no outside calls.">
+        <Section
+          id="agents"
+          title="The steps"
+          intro="Nine steps. Five call the language model, three use MCP tools (flights does both), and two make no outside calls."
+        >
           <div className="surface overflow-x-auto">
             <table className="w-full min-w-160 text-left text-sm">
               <caption className="sr-only">Each step, what it does and what it uses</caption>
               <thead>
-                <tr className="border-b text-xs text-muted-foreground uppercase">
-                  <th scope="col" className="px-5 py-3 font-medium">
+                <tr className="border-b bg-muted/40 text-xs text-muted-foreground uppercase">
+                  <th scope="col" className="px-5 py-3.5 font-medium">
                     Step
                   </th>
-                  <th scope="col" className="px-5 py-3 font-medium">
+                  <th scope="col" className="px-5 py-3.5 font-medium">
                     What it does
                   </th>
-                  <th scope="col" className="px-5 py-3 font-medium">
+                  <th scope="col" className="px-5 py-3.5 font-medium">
                     Uses
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {AGENTS.map((agent) => (
-                  <tr key={agent.name}>
-                    <th scope="row" className="px-5 py-3 align-top font-mono text-[0.8125rem] font-medium">
+                  <tr key={agent.name} className="transition-colors hover:bg-muted/30">
+                    <th scope="row" className="px-5 py-3.5 align-top font-mono text-[0.8125rem] font-medium">
                       {agent.name}
                     </th>
-                    <td className="px-5 py-3 align-top text-muted-foreground">{agent.does}</td>
-                    <td className="px-5 py-3 align-top">
+                    <td className="px-5 py-3.5 align-top text-muted-foreground">{agent.does}</td>
+                    <td className="px-5 py-3.5 align-top">
                       <Tag tone={agent.tone}>{agent.uses}</Tag>
                     </td>
                   </tr>
@@ -597,30 +816,30 @@ export function ArchitecturePage({ onStart }: { onStart: () => void }) {
             <table className="w-full min-w-160 text-left text-sm">
               <caption className="sr-only">Phase 1, Phase 2 and the final version compared</caption>
               <thead>
-                <tr className="border-b text-xs text-muted-foreground uppercase">
-                  <th scope="col" className="px-5 py-3 font-medium">
+                <tr className="border-b bg-muted/40 text-xs text-muted-foreground uppercase">
+                  <th scope="col" className="px-5 py-3.5 font-medium">
                     &nbsp;
                   </th>
-                  <th scope="col" className="px-5 py-3 font-medium">
+                  <th scope="col" className="px-5 py-3.5 font-medium">
                     Phase 1
                   </th>
-                  <th scope="col" className="px-5 py-3 font-medium">
+                  <th scope="col" className="px-5 py-3.5 font-medium">
                     Phase 2
                   </th>
-                  <th scope="col" className="px-5 py-3 font-medium text-primary">
+                  <th scope="col" className="px-5 py-3.5 font-medium text-primary">
                     Final version
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {COMPARE.map((row) => (
-                  <tr key={row.row}>
-                    <th scope="row" className="px-5 py-3 align-top font-medium">
+                  <tr key={row.row} className="transition-colors hover:bg-muted/30">
+                    <th scope="row" className="px-5 py-3.5 align-top font-medium">
                       {row.row}
                     </th>
-                    <td className="px-5 py-3 align-top text-muted-foreground">{row.p1}</td>
-                    <td className="px-5 py-3 align-top text-muted-foreground">{row.p2}</td>
-                    <td className="px-5 py-3 align-top font-medium">{row.p3}</td>
+                    <td className="px-5 py-3.5 align-top text-muted-foreground">{row.p1}</td>
+                    <td className="px-5 py-3.5 align-top text-muted-foreground">{row.p2}</td>
+                    <td className="px-5 py-3.5 align-top font-medium">{row.p3}</td>
                   </tr>
                 ))}
               </tbody>
