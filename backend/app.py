@@ -14,19 +14,14 @@ nest_asyncio.apply()
 load_dotenv()
 
 # =========================
-# Which agent runs (set AGENT_MODE in .env)
+# The agent (final version)
 # =========================
-#   without_mcp (default): tools are called directly in Python (agent_without_mcp.py)
-#   mcp                  : tools are called through MCP servers (agent_with_mcp.py)
-# Plain module names (not "backend.agent...") because the app runs from inside backend/.
-AGENT_MODE = os.getenv("AGENT_MODE", "without_mcp").strip().lower()
-
-if AGENT_MODE == "mcp":
-    from agent_with_mcp import run_travel_agent
-else:
-    from agent_without_mcp import run_travel_agent
-
-print(f"Agent mode: {AGENT_MODE}")
+# backend.py must define run_travel_agent(user_input, thread_id=None) and return a dict with
+# thread_id, answer, flight_results, hotel_results, itinerary, llm_calls
+# (and optionally weather_results).
+# The Phase 1 and Phase 2 agents are archived in backend/backup/.
+# Plain module name (not "backend.backend") because the app runs from inside backend/.
+from backend import run_travel_agent
 
 from constants.app_constant import (
     PORT,

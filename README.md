@@ -2,19 +2,23 @@
 
 An AI travel planner built as a multi-agent system. You describe a trip in plain language, and a team of agents checks live flights, finds hotels, and writes a complete itinerary.
 
-The project is being built in phases. Each phase upgrades the same application and lives on its own branch, so you can compare how the design changes.
+The project is being built in phases. Each phase upgrades the same application. Phases 1 and 2 are finished and archived in `backend/backup/`, and the final version is being written in `backend/backend.py`.
 
 | Phase | What it covers | Status |
 |-------|----------------|--------|
-| **1** | Multi-agent travel planner with LangGraph, **without MCP** | Done (this README) |
-| **2** | Move the tools to **MCP** (Model Context Protocol) | Planned |
-| **3** | Add a **Supervisor**, **Guardrails** and **Human-in-the-Loop (HITL)** | Planned |
+| **1** | Multi-agent travel planner with LangGraph, **without MCP** | Done, archived |
+| **2** | Tools moved to **MCP** (Model Context Protocol), plus a weather agent | Done, archived |
+| **3** | **Final version**: Supervisor, Guardrails and Human-in-the-Loop (HITL) | In progress (`backend/backend.py`) |
 
-> Phase 1 code lives on the `phase/withoutmcp` branch.
+> Branches: Phase 1 is on `phase/withoutmcp` and Phase 2 on `phase/withmcp`.
+
+> **Current state:** `app.py` imports `run_travel_agent` from `backend/backend.py`. That file is the start of the final version and does not define it yet, so the API will not start until it does. See [Final version](#phase-3-final-version-supervisor-guardrails-and-hitl-in-progress).
 
 ---
 
 ## Phase 1: Multi-agent travel planner (without MCP)
+
+> Archived in `backend/backup/`: `agent_without_mcp.py` (the graph), `agents/` and `tools/`.
 
 ### What it does
 
@@ -73,31 +77,35 @@ flowchart LR
 
 ### Project structure
 
+The current layout of the repository:
+
 ```
 SypharisOne/
 ├── backend/
-│   ├── app.py                FastAPI app, CORS, API routes
-│   ├── agent.py              Builds the LangGraph graph, run_travel_agent()
-│   ├── agents/               One file per agent + the shared state
-│   │   ├── state.py
-│   │   ├── flight_agent.py
-│   │   ├── hotel_agent.py
-│   │   ├── itinerary_agent.py
-│   │   └── final_agent.py
-│   ├── tools/
-│   │   ├── flight_tool.py    AviationStack search + route parsing
-│   │   └── tavily_tool.py    Tavily web search
+│   ├── app.py                FastAPI app, CORS, API routes. Imports run_travel_agent from backend.py
+│   ├── backend.py            Final version of the agent (in progress)
+│   ├── mcp/                  Phase 2 MCP client and servers
+│   │   ├── mcp_client.py     Connects to the MCP servers, shared helpers
+│   │   ├── flight_aviation_mcp.py
+│   │   ├── tavily_mcp.py
+│   │   ├── weather_mcp.py    Client side of the weather server + destination detection
+│   │   └── weather_mcp_server.py   Our own MCP server (OpenWeather)
 │   ├── config/
 │   │   ├── db.py             Database URL handling
 │   │   └── groq.py           Groq LLM setup
 │   ├── constants/
 │   │   └── app_constant.py   Version and route paths
+│   ├── backup/               Archived Phase 1 and 2 code, not used by the app
+│   │   ├── agent_without_mcp.py   Phase 1 graph and run_travel_agent()
+│   │   ├── agent_with_mcp.py      Phase 2 graph and run_travel_agent()
+│   │   ├── agents/                Phase 1: one file per agent + the shared state
+│   │   └── tools/                 flight_tool.py (AviationStack + route parsing), tavily_tool.py
 │   └── Dockerfile
 ├── frontend/
 │   ├── src/
 │   │   ├── App.tsx           Page layout and request flow
-│   │   ├── components/       Composer, results tabs, loading steps, theme toggle
-│   │   └── lib/api.ts        Backend API client
+│   │   ├── components/       Trip form, result view, Weather/Flights/Hotels cards, loading steps, theme toggle
+│   │   └── lib/              api.ts (backend client), trip.ts (form to request), parse.ts (text to cards)
 │   ├── Dockerfile
 │   └── nginx.conf
 ├── docker-compose.yml        Runs frontend and backend together
@@ -133,10 +141,13 @@ Response:
   "answer": "...final formatted plan (markdown)...",
   "flight_results": "...",
   "hotel_results": "...",
+  "weather_results": "...",
   "itinerary": "...",
   "llm_calls": 4
 }
 ```
+
+`weather_results` is an empty string unless the agent in `backend.py` provides it. The Phase 2 agent did. The Phase 1 agent did not.
 
 Errors return `{ "success": false, "error": "..." }` with status `400` (empty message) or `500`.
 
@@ -159,6 +170,7 @@ curl -X POST http://localhost:8000/api/v1/travel \
 | Groq | The LLM | https://console.groq.com |
 | Tavily | Hotel / web search | https://tavily.com |
 | AviationStack | Live flight data | https://aviationstack.com |
+| OpenWeather | Weather (Phase 2 weather MCP server) | https://openweathermap.org/api |
 | Render PostgreSQL | Conversation storage | https://render.com (use the **External** database URL) |
 | LangSmith (optional) | Tracing | https://smith.langchain.com |
 
@@ -177,11 +189,14 @@ Then fill in your values. `.env` is ignored by git, so your keys are never commi
 | `AVIATIONSTACK_API_KEY` | AviationStack API key |
 | `AVIATIONSTACK_BASE_URL` | Flights endpoint. Free plan is HTTP only |
 | `DEFAULT_ORIGIN_IATA` | Default departure airport, e.g. `DEL` |
+| `OPENWEATHER_API_KEY` | OpenWeather API key (used by the weather MCP server) |
 | `DATABASE_URL` | Render PostgreSQL external URL (`sslmode=require` is added if missing) |
 | `LANGSMITH_*` | Optional tracing settings |
 | `CORS_ORIGINS` | Optional. Frontend URLs allowed to call the API (comma-separated) |
 
 #### 3a. Run with Docker (recommended)
+
+This needs `backend/backend.py` to define `run_travel_agent` (see **Current state** above).
 
 ```bash
 docker compose up --build
@@ -213,7 +228,7 @@ cd backend
 python3 app.py            # http://127.0.0.1:8000, auto-reload
 ```
 
-Run backend commands from inside `backend/`. Its imports (`agents`, `config`, `tools`) are relative to that folder.
+Run backend commands from inside `backend/`. Its imports (`from backend import ...`, `config`, `constants`) are relative to that folder.
 
 **Frontend** (Node 20.19+ and pnpm):
 
@@ -227,7 +242,9 @@ The frontend calls `http://127.0.0.1:8000` by default. To change it, copy `front
 
 ### Frontend
 
-A single-page app where you type a trip request and get the result in tabs: **Trip plan**, **Itinerary**, **Flights** and **Hotels**. It includes example prompts, a progress view while the agents work, a stop button, retry on errors, copy-to-clipboard, and light/dark mode.
+A single-page app with a plain trip form (From, To, Days and optional notes) and a few popular trips. The form builds the request sentence for the API, for example *"Plan a 5 day trip from Delhi to Tokyo with hotels"*.
+
+The result shows the plan on the left, with **Full plan** and **Day by day** views plus Copy and Print. On the right are **Weather**, **Flights** and **Hotels** cards. The Weather card only appears when the agent returns weather. The page also has a progress card while the agents work, retry on errors, and light/dark mode. Colors are solid (no gradients) and headings use a serif font.
 
 ### Known limitations (Phase 1)
 
@@ -245,17 +262,33 @@ These are the gaps the next phases are meant to address.
 
 ---
 
-## Phase 2: MCP version (planned)
+## Phase 2: MCP version
 
-Move the tools (flights, search) behind MCP (Model Context Protocol) servers, so agents discover and call tools through a standard interface instead of direct function calls.
+> Archived in `backend/backup/agent_with_mcp.py`. The MCP client and servers it uses are still in `backend/mcp/`.
 
-*Details will be added when this phase is built.*
+The tools now run behind MCP (Model Context Protocol) servers, and the agents call them through one client instead of calling Python functions directly. A weather agent was added, so the pipeline is: flight, hotel, weather, itinerary, final. The LLM in this version was Groq `llama-3.3-70b-versatile`.
 
-## Phase 3: Supervisor, Guardrails and HITL (planned)
+| MCP server | How it runs | Used for |
+|------------|-------------|----------|
+| AviationStack (`aviationstack-mcp`) | Started with `uvx` over stdio | Live flight information |
+| Tavily | Remote server over streamable HTTP | Hotel search |
+| Weather (`weather_mcp_server.py`) | Our own server (FastMCP), started as a subprocess over stdio | Current weather and forecast from OpenWeather |
 
-Add a supervisor agent that routes work to the right agents, guardrails that check inputs and outputs, and human-in-the-loop approval points.
+- `mcp/mcp_client.py` is the hub: one `MultiServerMCPClient`, a helper that loads the tools of **one** server at a time (so a problem with one server does not stop the others), and a `call_mcp_tool()` helper that always returns text.
+- **Flight agent:** the AviationStack plan used here blocks `list_airports` and `list_airlines`, so the agent works out the airports from the sentence and reads today's live departure board through the MCP server instead. Fares and duration are labelled as estimates.
+- **Weather agent:** finds the destination city in the request (a country such as Japan maps to its main city) and fetches current weather and a short forecast.
+- **Needs:** `OPENWEATHER_API_KEY` in `.env`, and `uv` (listed in `requirements.txt`) for `uvx`.
+- Never add an `__init__.py` to `backend/mcp/`. A package named `mcp` would hide the real `mcp` library and break every MCP import.
 
-*Details will be added when this phase is built.*
+To run an archived agent again, move it (and `tools/` and `agents/`) back into `backend/`.
+
+## Phase 3: Final version: Supervisor, Guardrails and HITL (in progress)
+
+The final version is written in `backend/backend.py`. The plan is a supervisor agent that routes work to the right agents, guardrails that check inputs and outputs, and human-in-the-loop approval points.
+
+`app.py` expects `backend.py` to define `run_travel_agent(user_input, thread_id=None)` returning a dict with `thread_id`, `answer`, `flight_results`, `hotel_results`, `itinerary` and `llm_calls` (and optionally `weather_results`).
+
+*Details will be added as this phase is built.*
 
 ---
 
@@ -263,3 +296,4 @@ Add a supervisor agent that routes work to the right agents, guardrails that che
 
 - Never commit `.env`. Only `.env.example` (placeholders only) belongs in git.
 - The backend image runs as a non-root user.
+- `backend/backup/` is an archive of the earlier phases. The app does not import it and does not need it to run.
