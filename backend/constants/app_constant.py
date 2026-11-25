@@ -2,4 +2,5 @@ PORT=8000
 VERSION="v1.0.0"
 URL_VERSION= "v1"
 TRAVEL_ROUTE = f"/api/{URL_VERSION}/travel"
+TRAVEL_APPROVE_ROUTE = f"/api/{URL_VERSION}/travel/approve"
 HEALTH_ROUTE = f"/api/{URL_VERSION}/health"

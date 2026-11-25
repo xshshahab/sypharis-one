@@ -7,6 +7,8 @@ extract_destination finds the city to look up in the user's sentence.
 
 import re
 
+import pycountry
+
 from mcp_client import call_mcp_tool
 
 # Countries are not cities, so use a representative city for the weather lookup
@@ -44,6 +46,40 @@ def _to_city(place: str) -> str:
     return COUNTRY_TO_CITY.get(place, place.title())
 
 
+# Cities recognised when the sentence has no "to X" / "in X" / "visit X"
+KNOWN_CITIES = (
+    "dhaka", "delhi", "new delhi", "mumbai", "kolkata", "chennai", "bangalore", "bengaluru",
+    "goa", "hyderabad", "pune", "ahmedabad", "jaipur", "kochi", "cochin", "lucknow",
+    "chandigarh", "srinagar", "varanasi", "amritsar", "bhubaneswar", "patna", "guwahati",
+    "thiruvananthapuram", "trivandrum", "indore", "nagpur", "udaipur", "tokyo", "osaka",
+    "kyoto", "new york", "london", "dubai", "singapore", "kuala lumpur", "bangkok", "doha",
+    "istanbul", "toronto", "sydney", "paris", "rome", "madrid", "frankfurt",
+)
+
+
+def _place_mentions(query: str) -> list[str]:
+    """
+    Known country and city names in the sentence, in the order they appear.
+    A name inside a longer one is skipped ("korea" inside "south korea").
+    """
+    names = set(COUNTRY_TO_CITY) | set(KNOWN_CITIES)
+    names |= {c.name.lower() for c in pycountry.countries if len(c.name) >= 4}
+
+    spans = []
+    for name in names:
+        for match in re.finditer(rf"\b{re.escape(name)}\b", query):
+            spans.append((match.start(), match.end(), name))
+
+    # Longest first, then drop anything inside a span we already kept
+    spans.sort(key=lambda span: (span[0] - span[1], span[0]))
+    kept = []
+    for start, end, name in spans:
+        if not any(k_start <= start and end <= k_end for k_start, k_end, _ in kept):
+            kept.append((start, end, name))
+
+    return [name for _, _, name in sorted(kept)]
+
+
 def extract_destination(query: str):
     """
     Finds the destination city in a trip request. Returns None if there isn't one.
@@ -62,12 +98,10 @@ def extract_destination(query: str):
                 return _to_city(place)
 
     # No preposition: take a known country/city that is not the "from" place
-    from tools.flight_tool import find_location_mentions
-
     from_match = re.search(rf"\bfrom\s+(.+?){_END}", q)
     origin = _clean_place(from_match.group(1)) if from_match else ""
 
-    for mention in find_location_mentions(q):
+    for mention in _place_mentions(q):
         if mention != origin:
             return _to_city(mention)
 
